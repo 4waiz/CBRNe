@@ -395,7 +395,7 @@ export function TwinMarkers({ compact }: { compact?: boolean }) {
         SENSORS.map((s) => <SensorMarker key={s.id} id={s.id} setRef={setRef(`sensor:${s.id}`, () => [s.x, s.y, s.z])} />)}
       {showAssets && (
         <>
-          <AssetMarker id="UGV-01" setRef={setRef('asset:UGV-01', () => [assetVisual.ugv.x, 6.5, assetVisual.ugv.z])} />
+          <AssetMarker id="UGV-01" setRef={setRef('asset:UGV-01', () => [assetVisual.ugv.x, 3, assetVisual.ugv.z])} />
           <AssetMarker id="UAV-01" setRef={setRef('asset:UAV-01', () => [assetVisual.uav.x, assetVisual.uav.y + 6, assetVisual.uav.z])} />
           {!compact && <AssetMarker id="TEAM-1" setRef={setRef('asset:TEAM-1', () => [assetVisual.team[0].x, 3, assetVisual.team[0].z])} />}
           {!compact && <AssetMarker id="RV-02" setRef={setRef('asset:RV-02', () => [RESPONSE_VEHICLE_POSE.x, 5, RESPONSE_VEHICLE_POSE.z])} />}

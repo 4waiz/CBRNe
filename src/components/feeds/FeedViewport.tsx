@@ -12,6 +12,8 @@ const KIND_COLOR: Record<Detection['kind'], string> = {
   structure: '#7fd8b0',
   hotspot: '#ff8a3d',
   aircraft: '#8fd3ff',
+  fire: '#ff5a36',
+  smoke: '#c4ccd4',
 };
 
 function bracket(c: string) {
@@ -35,7 +37,7 @@ function DetectionOverlay({ viewId, exclude, compact, onDetections }: { viewId: 
     const host = ref.current;
     if (!host) return;
     const pool: HTMLDivElement[] = [];
-    const PRIORITY: Record<Detection['kind'], number> = { hotspot: 0, person: 1, robot: 2, vehicle: 3, aircraft: 4, structure: 5 };
+    const PRIORITY: Record<Detection['kind'], number> = { fire: 0, hotspot: 1, person: 2, robot: 3, smoke: 4, vehicle: 5, aircraft: 6, structure: 7 };
     const labels: { x: number; y: number; w: number; h: number }[] = [];
     return frameBus.onFeed(viewId, (f) => {
       const dets = detect(f.camera, f.rect.width, f.rect.height, f.t, exclude).sort((a, b) => PRIORITY[a.kind] - PRIORITY[b.kind]);

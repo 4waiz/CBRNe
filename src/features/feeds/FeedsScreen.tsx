@@ -20,6 +20,7 @@ import {
   Truck,
   Building,
   Flame,
+  CloudFog,
   Activity,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
@@ -40,8 +41,10 @@ const KIND_ICON: Record<Detection['kind'], LucideIcon> = {
   robot: Bot,
   vehicle: Truck,
   structure: Building,
-  hotspot: Flame,
+  hotspot: Thermometer,
   aircraft: Drone,
+  fire: Flame,
+  smoke: CloudFog,
 };
 
 const MODE_OPTIONS: { value: FeedMode; label: string }[] = [

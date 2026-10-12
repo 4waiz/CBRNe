@@ -8,6 +8,7 @@ import { Facility } from './Facility';
 import { AssetLayer } from './AssetLayer';
 import { IncidentLayer } from './IncidentLayer';
 import { PlumeLayer } from './PlumeLayer';
+import { FireLayer } from './FireLayer';
 import { MarkerLayer, RouteLayer, WeatherLayer, ZonesLayer } from './OverlayLayers';
 import { CameraRig, HOME } from './CameraRig';
 import { RenderLoop } from './RenderLoop';
@@ -56,6 +57,7 @@ export default function SceneCanvas() {
         <Vegetation />
         <Facility />
         <AssetLayer />
+        <FireLayer />
         <IncidentLayer />
         <PlumeLayer />
         <ZonesLayer />

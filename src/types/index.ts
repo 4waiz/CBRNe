@@ -65,7 +65,7 @@ export interface AssetState {
   headcount?: { present: number; total: number };
 }
 
-export type EventCategory = 'chem' | 'bio' | 'rad' | 'asset' | 'system' | 'ai';
+export type EventCategory = 'chem' | 'bio' | 'rad' | 'fire' | 'asset' | 'system' | 'ai';
 
 export type FocusTarget =
   | { kind: 'sensor'; id: string }
@@ -106,7 +106,7 @@ export interface ChecklistItem {
   priority: 'high' | 'medium' | 'low';
 }
 
-export type IncidentCategory = Category | 'thermal' | 'network' | 'multi';
+export type IncidentCategory = Category | 'thermal' | 'network' | 'multi' | 'fire';
 
 export interface IncidentLocation {
   x: number;
@@ -225,7 +225,8 @@ export type ScenarioId =
   | 'biological'
   | 'degraded'
   | 'thermal'
-  | 'multi';
+  | 'multi'
+  | 'fire';
 
 export interface ScenarioParams {
   preset: ScenarioId;

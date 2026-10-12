@@ -24,7 +24,7 @@ export function LiveChip({ stale }: { stale: boolean }) {
     <span className="inline-flex items-center gap-1 font-cond text-[10px] font-semibold uppercase tracking-[0.1em] text-green">
       <span className="h-[6px] w-[6px] rounded-full bg-green shadow-[0_0_6px_#3dd68c]" aria-hidden />
       {/* a narrow tile keeps the green dot and gives the camera name the room */}
-      <span className="@max-[200px]:sr-only">Live</span>
+      <span className="@max-[200px]:sr-only">Sim live</span>
     </span>
   );
 }

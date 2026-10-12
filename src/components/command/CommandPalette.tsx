@@ -20,6 +20,7 @@ import {
   Waypoints,
   Crosshair,
   Thermometer,
+  FireExtinguisher,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useUI, type Screen } from '../../store/ui';
@@ -73,6 +74,7 @@ function buildCommands(): Cmd[] {
     { id: 'sc-rad', group: 'Scenarios', label: 'Trigger Radiological Scenario', icon: Radiation, run: () => trigger('radiological') },
     { id: 'sc-bio', group: 'Scenarios', label: 'Trigger Biological Scenario', icon: Biohazard, run: () => trigger('biological') },
     { id: 'sc-multi', group: 'Scenarios', label: 'Trigger Multi-source Scenario', icon: Waypoints, run: () => trigger('multi') },
+    { id: 'sc-fire', group: 'Scenarios', label: 'Trigger Fire Response', hint: 'robot dog · UAV · decon', icon: FireExtinguisher, run: () => trigger('fire') },
     { id: 'sc-thermal', group: 'Scenarios', label: 'Trigger Thermal Hotspot', icon: Flame, run: () => trigger('thermal') },
     { id: 'sc-degraded', group: 'Scenarios', label: 'Trigger Sensor Network Degraded', icon: WifiOff, run: () => trigger('degraded') },
     { id: 'sc-reset', group: 'Scenarios', label: 'Reset Scenario', hint: 'return to normal operations', icon: RotateCcw, run: () => { engine.reset(); useUI.getState().notify('Returned to normal operations', 'ok'); } },

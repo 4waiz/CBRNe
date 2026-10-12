@@ -14,9 +14,10 @@ import type {
   SimEvent,
   TimelineKind,
   Tone,
+  Vec2,
 } from '../types';
 import type { Effect, EffectKind } from './effects';
-import type { ScenarioLocation } from './locations';
+import { FIRE_SITE, type ScenarioLocation } from './locations';
 import { fmtDuration } from '../utils/format';
 import { compassLabel } from '../utils/math';
 
@@ -41,7 +42,11 @@ export const PRESETS: PresetDef[] = [
   { id: 'degraded', label: 'Sensor network degraded', description: 'Communication dropout across a sector and one stale CCTV stream.', defaultLocation: 'U1-WEST' },
   { id: 'thermal', label: 'Thermal hotspot', description: 'Equipment surface temperature rise, thermal inspection.', defaultLocation: 'SWITCHYARD' },
   { id: 'multi', label: 'Multi-source correlation', description: 'Gamma trend + thermal signature + wind model correlated by AI fusion.', defaultLocation: 'U3-EAST' },
+  { id: 'fire', label: 'Fire response', description: 'Generator fire in the service yard: robot dog suppression, UAV overwatch, decontamination and recovery.', defaultLocation: 'YARD' },
 ];
+
+/** Presets that always run at a fixed site (their layout is built around it). */
+export const FIXED_LOCATION: Partial<Record<ScenarioId, string>> = { fire: 'YARD' };
 
 export const PRESET_BY_ID = Object.fromEntries(PRESETS.map((p) => [p.id, p])) as Record<ScenarioId, PresetDef>;
 
@@ -84,6 +89,15 @@ export interface IncidentSpec {
   checklist: Omit<ChecklistItem, 'done'>[];
 }
 
+export interface FirePlanTimes {
+  sprayStart: number;
+  sprayEnd: number;
+  deconStart: number;
+  deconEnd: number;
+  chargeStart: number;
+  chargeEnd: number;
+}
+
 export interface ScriptContext {
   run: ScenarioRun;
   loc: ScenarioLocation;
@@ -99,7 +113,21 @@ export interface ScriptContext {
   evidence(ev: Omit<Evidence, 'id' | 't'>): void;
   observe(patch: Partial<Observation>): void;
   dispatchUgv(label: string): { distance: number; duration: number };
-  orbitUav(label: string, x?: number, z?: number): void;
+  orbitUav(label: string, x?: number, z?: number, opts?: { r?: number; alt?: number; speed?: number }): void;
+  /** fire response: send the robot along the roads (fast), arrival is reported like dispatchUgv */
+  ugvRespond(target: Vec2, lookAt: Vec2, label: string, vmax?: number): { distance: number; duration: number };
+  /** fire response: schedule spray → decon → dock → patrol from the robot's position now */
+  ugvFirePlan(o: { target: Vec2; toTent: Vec2[]; toDock: Vec2[]; spray: number; wash: number; charge: number }): FirePlanTimes;
+  ugvDistanceTo(x: number, z: number): number;
+  /** start an effect's ramp-down at time `at` (ms) */
+  endEffect(id: string, at: number, rampDown: number): void;
+  teamMuster(point: Vec2, face: Vec2, label: string): number;
+  teamRelease(): void;
+  uavResume(): void;
+  /** the scenario resolves itself: incident closed by the system, run ended */
+  resolveScenario(summary: string): void;
+  /** flame temperature at the scenario location (°C) */
+  fireTemp(): number;
   assignTeam(task: string): void;
   sensor(id: string): number | null;
   addSamples(n: number): void;
@@ -151,6 +179,15 @@ const BIO_CHECKLIST: Omit<ChecklistItem, 'done'>[] = [
   { id: 'hvac', text: 'Review HVAC intake status', priority: 'medium' },
   { id: 'supervisor', text: 'Notify shift supervisor', priority: 'medium' },
   { id: 'assessment', text: 'Record operator assessment', priority: 'medium' },
+];
+
+const FIRE_CHECKLIST: Omit<ChecklistItem, 'done'>[] = [
+  { id: 'detect', text: 'Detect · confirm the fire on camera', priority: 'high' },
+  { id: 'protect', text: 'Protect · withdraw personnel to the assembly point', priority: 'high' },
+  { id: 'dispatch', text: 'Deploy · robot suppression and UAV overwatch', priority: 'high' },
+  { id: 'suppress', text: 'Suppress · knock down the fire, confirm on thermal', priority: 'high' },
+  { id: 'decon', text: 'Decontaminate · robot through DECON-1', priority: 'medium' },
+  { id: 'recover', text: 'Recover · recharge, return personnel, close out', priority: 'medium' },
 ];
 
 const NET_CHECKLIST: Omit<ChecklistItem, 'done'>[] = [
@@ -557,6 +594,172 @@ function thermalScript(): ScriptStep[] {
   ];
 }
 
+const TEAM: FocusTarget = { kind: 'asset', id: 'TEAM-1' };
+const plan = (c: ScriptContext) => c.vars.plan as FirePlanTimes | undefined;
+const after = (c: ScriptContext, key: keyof FirePlanTimes, delayMs = 0) => {
+  const p = plan(c);
+  return !!p && c.now() >= p[key] + delayMs;
+};
+
+/**
+ * Fire response, end to end: a generator skid in the service yard catches fire. CAM-02 analytics see the
+ * smoke, personnel withdraw upwind, the robot dog is sent with its water-mist payload while UAV-01 circles
+ * low, the robot confirms the flames on camera, knocks the fire down, walks through the inflatable
+ * decontamination shelter, recharges at its dock, and the incident closes itself once everyone is back.
+ */
+function fireScript(): ScriptStep[] {
+  const site = FIRE_SITE;
+  const tentFocus: FocusTarget = { kind: 'location', x: site.tent.x, z: site.tent.z, label: 'DECON-1', radius: 60 };
+  return [
+    {
+      at: 0,
+      run: (c) => {
+        c.vars.fireId = c.effect('fire', { amplitude: 560 * c.sev, sigma: 2.6, ramp: 16, x: site.fire.x, z: site.fire.z }).id;
+      },
+    },
+    {
+      at: 3,
+      run: (c) => {
+        c.vars.detectedAt = c.now();
+        c.event({ category: 'fire', tone: 'warn', title: 'CAM-02 analytics: smoke detected', detail: `${c.loc.equipment} · service yard`, confidence: 0.88, focus: loc(c) });
+        c.observation({
+          title: 'Fire at generator skid',
+          summary: `CAM-02 video analytics show smoke rising from ${c.loc.equipment.toLowerCase()} in the service yard. Robot and UAV confirmation requested before suppression.`,
+          category: 'fire',
+          status: 'review',
+          confidence: 0.88,
+          sources: ['CAM-02 analytics'],
+          recommended: [
+            'Withdraw service-yard personnel to assembly point AP-2 (upwind)',
+            'Send UGV-01 with the water-mist payload to the upwind stand-off',
+            'Hold UAV-01 in a low thermal orbit over the skid',
+            'Decontaminate UGV-01 at DECON-1 before it returns to the dock',
+          ],
+          evidence: [{ source: 'CAM-02', sourceKind: 'camera', summary: 'Smoke plume over the generator skid', value: 'Smoke 88%', weight: 0.5 }],
+        });
+        c.incident({ title: `Fire · ${c.loc.equipment}`, category: 'fire', severity: c.run.severity, sensors: [], checklist: FIRE_CHECKLIST });
+        c.timeline('detect', 'Smoke detected over the generator skid', 'CAM-02 analytics', c.loc.equipment, c.vars.detectedAt);
+      },
+    },
+    {
+      at: 5,
+      run: (c) => {
+        const arrive = c.teamMuster(site.assembly, site.fire, 'Assembly point AP-2');
+        c.vars.musteredAt = arrive;
+        c.event({ category: 'system', tone: 'warn', title: 'Personnel withdrawing to AP-2', detail: 'Survey Team · assembly point upwind of the yard', focus: TEAM });
+        c.timeline('operator', 'Service yard cleared · personnel to AP-2', 'Shift supervisor');
+      },
+    },
+    {
+      at: 6,
+      run: (c) => {
+        const r = c.ugvRespond(site.standoff, site.fire, `Fire response · ${c.loc.equipment}`, 9);
+        c.event({ category: 'asset', tone: 'info', title: 'UGV-01 dispatched · water-mist payload', detail: `${Math.round(r.distance)} m · ETA ${fmtDuration(r.duration)}`, focus: UGV });
+        c.timeline('asset', 'UGV-01 assigned · suppression payload', 'Response coordinator', `Route ${Math.round(r.distance)} m · upwind stand-off`);
+      },
+    },
+    {
+      at: 8,
+      run: (c) => {
+        c.orbitUav(`Thermal overwatch · ${c.loc.short}`, site.fire.x, site.fire.z, { r: 46, alt: 36, speed: 11 });
+        c.event({ category: 'asset', tone: 'info', title: 'UAV-01 circling the fire', detail: 'Low orbit · thermal mapping of the skid', focus: UAV });
+        c.timeline('asset', 'UAV-01 low thermal orbit', 'Response coordinator');
+        c.check('dispatch');
+      },
+    },
+    {
+      at: 10,
+      run: (c) => {
+        c.vars.tentId = c.effect('decon', { amplitude: 1, sigma: 5, ramp: 9, x: site.tent.x, z: site.tent.z }).id;
+        c.event({ category: 'system', tone: 'info', title: 'DECON-1 deploying', detail: 'Inflatable decontamination shelter · west of the robotics garage', focus: tentFocus });
+        c.timeline('system', 'Decontamination line DECON-1 set up', 'Response coordinator');
+      },
+    },
+    {
+      when: (c) => c.vars.musteredAt !== undefined && c.now() >= (c.vars.musteredAt as number),
+      run: (c) => {
+        c.event({ category: 'system', tone: 'ok', title: 'Personnel accounted for at AP-2', detail: '3 / 3 · upwind of the fire', focus: TEAM });
+        c.timeline('operator', 'Personnel accounted for · 3 / 3', 'Shift supervisor');
+        c.check('protect');
+      },
+    },
+    {
+      // the robot sees it: its camera has the skid in view on the approach
+      when: (c) => c.vars.dispatchedAt !== undefined && c.ugvDistanceTo(site.fire.x, site.fire.z) < 64,
+      run: (c) => {
+        const temp = c.fireTemp();
+        c.event({ category: 'fire', tone: 'critical', title: 'UGV-01 camera confirms open flame', detail: `Fire 97% · ${temp.toFixed(0)} °C on ${c.loc.equipment.toLowerCase()}`, confidence: 0.97, focus: UGV });
+        c.evidence({ source: 'UGV-01 camera', sourceKind: 'camera', summary: 'Open flame on the generator skid', value: 'Fire 97%', weight: 0.62 });
+        c.evidence({ source: 'UAV-01 thermal', sourceKind: 'camera', summary: 'Flame temperature from the overwatch orbit', value: `${temp.toFixed(0)} °C`, weight: 0.55 });
+        c.observe({ confidence: 0.97, status: 'validation', sources: ['CAM-02 analytics', 'UGV-01 camera', 'UAV-01 thermal'] });
+        c.timeline('detect', 'Fire confirmed by UGV-01 camera', 'UGV-01', `${temp.toFixed(0)} °C`);
+        c.check('detect');
+      },
+    },
+    {
+      when: (c) => arrived(c),
+      run: (c) => {
+        const times = c.ugvFirePlan({ target: site.fire, toTent: [...site.toTent], toDock: [...site.toDock], spray: 15, wash: 16, charge: 14 });
+        c.vars.plan = times;
+        // the flames start dying as soon as water reaches them
+        c.endEffect(c.vars.fireId as string, times.sprayStart + 1200, 9);
+        c.timeline('operator', 'Suppression authorised', 'Shift supervisor', 'UGV-01 water mist from the upwind stand-off');
+        c.observe({ status: 'validated' });
+        c.event({ category: 'fire', tone: 'warn', title: 'UGV-01 suppressing · water mist', detail: 'Upwind stand-off · 12 m from the skid', focus: UGV });
+      },
+    },
+    {
+      when: (c) => after(c, 'sprayStart', 7000),
+      run: (c) => {
+        c.event({ category: 'fire', tone: 'watch', title: 'Fire knocked down', detail: `Flames out · ${c.fireTemp().toFixed(0)} °C and falling`, confidence: 0.94, focus: loc(c) });
+        c.timeline('evidence', 'Knock-down confirmed on UAV-01 thermal', 'UAV-01');
+      },
+    },
+    {
+      when: (c) => after(c, 'sprayEnd'),
+      run: (c) => {
+        c.event({ category: 'fire', tone: 'ok', title: 'Fire extinguished', detail: `Skid surface ${c.fireTemp().toFixed(0)} °C · steam only`, confidence: 0.96, focus: loc(c) });
+        c.timeline('evidence', 'Fire extinguished · surface cooling', 'UGV-01');
+        c.check('suppress');
+      },
+    },
+    {
+      when: (c) => after(c, 'deconStart'),
+      run: (c) => {
+        c.event({ category: 'asset', tone: 'info', title: 'UGV-01 in DECON-1', detail: 'Wash cycle · soot and runoff contained', focus: tentFocus });
+        c.timeline('asset', 'UGV-01 entered DECON-1', 'UGV-01');
+      },
+    },
+    {
+      when: (c) => after(c, 'deconEnd'),
+      run: (c) => {
+        c.event({ category: 'asset', tone: 'ok', title: 'Decontamination complete', detail: 'UGV-01 swab clear · leaving by the clean side', focus: UGV });
+        c.timeline('asset', 'UGV-01 decontaminated', 'DECON-1');
+        c.check('decon');
+      },
+    },
+    {
+      when: (c) => after(c, 'chargeStart'),
+      run: (c) => {
+        c.event({ category: 'asset', tone: 'info', title: 'UGV-01 docked · recharging', detail: 'Robotics apron dock', focus: UGV });
+        c.uavResume();
+        c.teamRelease();
+        c.event({ category: 'system', tone: 'ok', title: 'Personnel returning to the yard', detail: 'All clear from the fire scene', focus: TEAM });
+        c.timeline('operator', 'All clear · personnel back to routine', 'Shift supervisor');
+      },
+    },
+    {
+      when: (c) => after(c, 'chargeEnd', 2500),
+      run: (c) => {
+        c.check('recover');
+        c.timeline('system', 'Recovery complete', 'Response coordinator', 'Fire out · UGV-01 decontaminated and recharged · personnel back to routine');
+        c.endEffect(c.vars.tentId as string, c.now() + 15000, 8);
+        c.resolveScenario('Fire out · robot decontaminated · area recovered');
+      },
+    },
+  ];
+}
+
 export function buildScript(preset: ScenarioId): ScriptStep[] {
   switch (preset) {
     case 'radiological':
@@ -571,6 +774,8 @@ export function buildScript(preset: ScenarioId): ScriptStep[] {
       return degradedScript();
     case 'thermal':
       return thermalScript();
+    case 'fire':
+      return fireScript();
     default:
       return [];
   }

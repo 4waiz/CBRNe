@@ -9,8 +9,6 @@ export const MODELS = {
   electrical: 'electrical-infrastructure',
   props: 'site-props',
   sensor: 'sensor-node',
-  ugv: 'ugv',
-  uav: 'uav',
   vehicle: 'response-vehicle',
   person: 'person',
 } as const;

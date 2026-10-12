@@ -1,10 +1,10 @@
 import { useEffect } from 'react';
-import { X, SlidersHorizontal, Monitor, Info, Play, RotateCcw, Wind, FlaskConical, Radiation, Biohazard, WifiOff, Flame, Waypoints, ShieldCheck, Keyboard } from 'lucide-react';
+import { X, SlidersHorizontal, Monitor, Info, Play, RotateCcw, Wind, FlaskConical, Radiation, Biohazard, WifiOff, Flame, Waypoints, ShieldCheck, Keyboard, FireExtinguisher } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useUI } from '../../store/ui';
 import { useSim } from '../../store/sim';
 import { engine } from '../../simulation/engine';
-import { PRESETS, PRESET_BY_ID } from '../../simulation/scenarios';
+import { FIXED_LOCATION, PRESETS, PRESET_BY_ID } from '../../simulation/scenarios';
 import { LOCATIONS, LOCATION_BY_ID } from '../../simulation/locations';
 import { Segmented, Toggle, cx, Kbd, useNow } from '../ui/primitives';
 import { compassLabel } from '../../utils/math';
@@ -20,6 +20,7 @@ const PRESET_ICON: Record<ScenarioId, LucideIcon> = {
   degraded: WifiOff,
   thermal: Flame,
   multi: Waypoints,
+  fire: FireExtinguisher,
 };
 
 function Field({ label, children, hint }: { label: string; children: React.ReactNode; hint?: string }) {
@@ -40,6 +41,9 @@ function ScenarioTab() {
   const autoplay = useUI((s) => s.settings.autoplay);
   const run = useSim((s) => s.run);
   const now = useNow(1000);
+  // some scenarios are staged at one place (the fire response needs the yard's generator and shelter)
+  const fixedLocation = FIXED_LOCATION[draft.preset];
+  const locationId = fixedLocation ?? draft.locationId;
 
   return (
     <div className="flex flex-col gap-4">
@@ -108,11 +112,12 @@ function ScenarioTab() {
         </Field>
       </div>
 
-      <Field label="Location">
+      <Field label="Location" hint={fixedLocation ? 'Fixed for this scenario' : undefined}>
         <select
-          value={draft.locationId}
+          value={locationId}
           onChange={(e) => set({ locationId: e.target.value })}
-          className="h-[28px] rounded-[5px] border border-line-strong bg-surface-2 px-2 text-[12px] text-ink-1"
+          disabled={!!fixedLocation}
+          className="h-[28px] rounded-[5px] border border-line-strong bg-surface-2 px-2 text-[12px] text-ink-1 disabled:opacity-60"
           aria-label="Location"
         >
           {LOCATIONS.map((l) => (
@@ -138,7 +143,7 @@ function ScenarioTab() {
           className="ctl h-[30px] flex-1 border-cyan/60 bg-[rgb(60_200_220/0.12)] text-ink-1"
           onClick={() => {
             engine.trigger(draft);
-            useUI.getState().notify(`${PRESET_BY_ID[draft.preset].label} · ${LOCATION_BY_ID[draft.locationId]?.short}`, 'info');
+            useUI.getState().notify(`${PRESET_BY_ID[draft.preset].label} · ${LOCATION_BY_ID[locationId]?.short}`, 'info');
           }}
         >
           <Play size={13} /> {draft.preset === 'normal' ? 'Return to normal' : 'Trigger scenario'}

@@ -22,10 +22,11 @@ import { SENSORS, NETWORK } from './sensors';
 import { type Effect, type EffectKind, envelope, isEffectLive, radField, chemField, bioField } from './effects';
 import { LOCATIONS, LOCATION_BY_ID, type ScenarioLocation } from './locations';
 import { WeatherModel } from './weather';
-import { ROADS, UgvController, UavController, teamPose, RESPONSE_VEHICLE_POSE, type Pose } from './assets';
+import { ROADS, UgvController, UavController, TeamController, RESPONSE_VEHICLE_POSE, type Pose } from './assets';
 import { history, HISTORY_CAPACITY } from './history';
 import {
   buildScript,
+  FIXED_LOCATION,
   PRESET_BY_ID,
   SEVERITY_FACTOR,
   routineEvents,
@@ -82,6 +83,7 @@ export class SimulationEngine {
   readonly weather = new WeatherModel();
   readonly ugv: UgvController;
   readonly uav: UavController;
+  readonly team: TeamController;
   effects: Effect[] = [];
   runs: ScenarioRun[] = [];
   activeRun: ScenarioRun | null = null;
@@ -112,6 +114,7 @@ export class SimulationEngine {
     this.ugv.segments[0] = { type: 'patrol', t0, s0: 905 - 3.6 * HISTORY_CAPACITY, speed: 3.6 };
     this.uav = new UavController(t0);
     this.uav.segments[0] = { type: 'perimeter', t0, s0: 2450 - 17 * HISTORY_CAPACITY, speed: 17, alt: 118 };
+    this.team = new TeamController(t0);
     for (const def of SENSORS) {
       this.sensorsRt.set(def.id, {
         def,
@@ -226,16 +229,18 @@ export class SimulationEngine {
 
     // ---- scenario scripts
     if (live && this.activeRun && this.ctx) {
+      const run = this.activeRun;
       for (const s of this.steps) {
+        // a step may close the run (the fire response resolves itself): stop there
+        if (this.activeRun !== run || !this.ctx) break;
         if (s.done) continue;
-        const due = s.at !== undefined ? t >= this.activeRun.startedAt + s.at * 1000 : s.when ? s.when(this.ctx) : false;
+        const due = s.at !== undefined ? t >= run.startedAt + s.at * 1000 : s.when ? s.when(this.ctx) : false;
         if (due) {
           s.done = true;
           s.run(this.ctx);
         }
       }
-      const run = this.activeRun;
-      if (run.endsAt !== null && t >= run.endsAt && !this.endedRunsNotified.has(run.runId)) {
+      if (this.activeRun === run && this.ctx && run.endsAt !== null && t >= run.endsAt && !this.endedRunsNotified.has(run.runId)) {
         this.endedRunsNotified.add(run.runId);
         for (const e of this.effects) if (e.runId === run.runId && e.endAt === null) e.endAt = run.endsAt;
         this.pushEvent({ category: 'system', tone: 'ok', title: 'Readings returning to baseline', detail: `${PRESET_BY_ID[run.preset].label} conditions easing`, incidentId: this.ctx.vars.incidentId });
@@ -303,6 +308,7 @@ export class SimulationEngine {
     const before = t - HISTORY_CAPACITY * 1000;
     this.ugv.prune(before);
     this.uav.prune(before);
+    this.team.prune(before);
     this.incidents = capRecords(this.incidents, MAX_INCIDENTS, (i) => i.status === 'resolved');
     const kept = capRecords(this.observations, MAX_OBSERVATIONS, (o) => o.status === 'cleared' || o.status === 'validated');
     if (kept !== this.observations) {
@@ -323,8 +329,13 @@ export class SimulationEngine {
         }
       }
     }
+    // fire response: the script schedules what happens at the stand-off, so arrival is only reported
+    if (this.ctx && seg.type === 'route' && seg.purpose === 'respond' && t >= seg.t0 + seg.duration * 1000 && this.ctx.vars.arrivedAt === undefined) {
+      if (this.ctx.vars.dispatchedAt !== undefined && this.ctx.vars.dispatchedAt <= seg.t0 + 1) this.ctx.vars.arrivedAt = seg.t0 + seg.duration * 1000;
+    }
     const p = this.ugv.pose(t);
-    this.ugvBattery = clamp(this.ugvBattery - dt * (p.speed > 0.4 ? 0.011 : 0.002), 18, 100);
+    if (seg.type === 'charge') this.ugvBattery = clamp(this.ugvBattery + dt * 0.9, 18, 100);
+    else this.ugvBattery = clamp(this.ugvBattery - dt * (p.speed > 0.4 ? 0.011 * (p.speed > 6 ? 2.2 : 1) : seg.type === 'suppress' ? 0.02 : 0.002), 18, 100);
   }
 
   private emitRoutine(t: number) {
@@ -489,11 +500,31 @@ export class SimulationEngine {
       status = ugSeg.mode === 'inspecting' ? 'Inspecting' : 'Holding';
       tone = 'watch';
       task = ugSeg.label;
+    } else if (ugSeg.type === 'suppress') {
+      status = 'Suppressing';
+      tone = 'warn';
+      task = ugSeg.label;
+    } else if (ugSeg.type === 'decon') {
+      status = 'Decontaminating';
+      tone = 'info';
+      task = ugSeg.label;
+    } else if (ugSeg.type === 'charge') {
+      status = 'Recharging';
+      tone = 'info';
+      task = ugSeg.label;
+    }
+    if (ugSeg.type === 'route' && ugSeg.purpose === 'respond') {
+      status = 'Responding';
+      tone = 'warn';
+    } else if (ugSeg.type === 'route' && (ugSeg.purpose === 'tent' || ugSeg.purpose === 'dock')) {
+      status = ugSeg.purpose === 'tent' ? 'To decon' : 'To dock';
+      tone = 'info';
     }
     const uaSeg = this.uav.current(t);
     const uap = this.uav.pose(t);
     const uavBattery = clamp(74 - (t - this.bootTime) / 1000 * 0.006, 35, 100);
-    const team = teamPose(0, t);
+    const team = this.team.pose(0, t);
+    const teamSeg = this.team.current(t);
     const anyActive = this.incidents.some((i) => i.status !== 'resolved' && i.assigned.includes('RV-02'));
     return {
       'UGV-01': {
@@ -532,10 +563,10 @@ export class SimulationEngine {
         id: 'TEAM-1',
         kind: 'team',
         name: 'Survey Team',
-        status: this.teamTask ? 'Assigned' : 'Accounted',
-        tone: this.teamTask ? 'info' : 'ok',
-        task: this.teamTask ?? 'Service yard survey',
-        area: 'Service zone',
+        status: teamSeg.type === 'muster' ? 'Mustered' : teamSeg.type === 'return' ? 'Returning' : this.teamTask ? 'Assigned' : 'Accounted',
+        tone: teamSeg.type === 'muster' ? 'watch' : this.teamTask ? 'info' : 'ok',
+        task: teamSeg.type === 'muster' ? teamSeg.label : this.teamTask ?? 'Service yard survey',
+        area: teamSeg.type === 'muster' ? 'Assembly point AP-2' : 'Service zone',
         battery: null,
         speed: 1.1,
         eta: null,
@@ -718,11 +749,18 @@ export class SimulationEngine {
   private hotspotTemp(x: number, z: number) {
     let delta = 0;
     for (const e of this.effects) {
-      if (e.kind !== 'thermal') continue;
+      if (e.kind !== 'thermal' && e.kind !== 'fire') continue;
       const d = Math.hypot(e.x - x, e.z - z);
-      if (d < 40) delta = Math.max(delta, e.amplitude * envelope(e, this.now));
+      if (d < 40) delta = Math.max(delta, e.amplitude * envelope(e, this.now) + (e.kind === 'fire' ? this.fireResidual(e, this.now) : 0));
     }
     return this.weather.current.temperature + delta;
+  }
+
+  /** After the flames are out the skid keeps cooling for a while (°C above ambient). */
+  private fireResidual(e: Effect, t: number) {
+    if (e.endAt === null || t < e.endAt) return 0;
+    const since = (t - e.endAt) / 1000;
+    return 70 * Math.exp(-since / 45) * Math.min(1, since / 4);
   }
 
   private makeContext(run: ScenarioRun, loc: ScenarioLocation): ScriptContext {
@@ -765,9 +803,44 @@ export class SimulationEngine {
         this.markAssigned(vars.incidentId, 'UGV-01');
         return { distance: r.distance, duration: r.duration };
       },
-      orbitUav: (label, x, z) => {
-        this.uav.orbit(this.now, x ?? loc.x, z ?? loc.z, label);
+      orbitUav: (label, x, z, opts) => {
+        this.uav.orbit(this.now, x ?? loc.x, z ?? loc.z, label, opts);
         this.markAssigned(vars.incidentId, 'UAV-01');
+      },
+      ugvRespond: (target, lookAt, label, vmax) => {
+        const r = this.ugv.dispatch(this.now, target, lookAt, 'respond', label, vmax);
+        vars.dispatchedAt = this.now;
+        vars.arrivedAt = undefined;
+        this.markAssigned(vars.incidentId, 'UGV-01');
+        return { distance: r.distance, duration: r.duration };
+      },
+      ugvFirePlan: (o) => this.ugv.firePlan(this.now, o),
+      ugvDistanceTo: (x, z) => {
+        const p = this.ugv.pose(this.now);
+        return Math.hypot(p.x - x, p.z - z);
+      },
+      endEffect: (id, at, rampDown) => {
+        const e = this.effects.find((x) => x.id === id);
+        if (!e) return;
+        e.endAt = at;
+        e.rampDown = rampDown;
+      },
+      teamMuster: (point, face, label) => {
+        this.markAssigned(vars.incidentId, 'TEAM-1');
+        return this.team.muster(this.now, point, face, label);
+      },
+      teamRelease: () => this.team.release(this.now),
+      uavResume: () => {
+        if (this.uav.isOrbiting(this.now)) this.uav.resumePerimeter(this.now);
+      },
+      resolveScenario: (summary) => this.closeRun(summary),
+      fireTemp: () => {
+        let delta = 0;
+        for (const e of this.effects) {
+          if (e.kind !== 'fire' || e.runId !== run.runId) continue;
+          delta = Math.max(delta, e.amplitude * envelope(e, this.now) + this.fireResidual(e, this.now));
+        }
+        return this.weather.current.temperature + delta;
       },
       assignTeam: (task) => {
         this.teamTask = task;
@@ -796,7 +869,7 @@ export class SimulationEngine {
       return;
     }
     this.windDown('Superseded by new scenario conditions');
-    const loc = LOCATION_BY_ID[params.locationId] ?? LOCATIONS[0];
+    const loc = LOCATION_BY_ID[FIXED_LOCATION[params.preset] ?? params.locationId] ?? LOCATIONS[0];
     const now = Date.now();
     this.now = now;
     const run: ScenarioRun = {
@@ -829,6 +902,26 @@ export class SimulationEngine {
     }
     this.observations = this.observations.map((o) => (o.status === 'validated' || o.status === 'cleared' ? o : { ...o, status: 'cleared', updatedAt: now }));
     this.recallAssets(now);
+    this.team.release(now);
+    for (const k of Object.keys(this.feedStale)) this.feedStale[k] = null;
+    this.teamTask = null;
+    this.activeRun = null;
+    this.steps = [];
+    this.ctx = null;
+  }
+
+  /** A scenario that ran its course: close its incident as resolved by the response team and end the run. */
+  private closeRun(summary: string) {
+    const run = this.activeRun;
+    if (!run) return;
+    const now = this.now;
+    for (const inc of this.incidents) {
+      if (inc.scenarioRunId !== run.runId || inc.status === 'resolved') continue;
+      this.addTimeline(inc.id, 'system', 'Incident closed', 'Response coordinator', summary);
+      this.patchIncident(inc.id, (i) => ({ ...i, status: 'resolved', resolvedAt: now, acknowledgedAt: i.acknowledgedAt ?? now }));
+      this.pushEvent({ category: 'system', tone: 'ok', title: 'Incident closed', detail: `${inc.id} · ${summary}`, incidentId: inc.id });
+    }
+    this.pushEvent({ category: 'system', tone: 'ok', title: 'Scenario complete', detail: `${run.label} · normal operations resumed` });
     for (const k of Object.keys(this.feedStale)) this.feedStale[k] = null;
     this.teamTask = null;
     this.activeRun = null;
@@ -971,6 +1064,7 @@ export class SimulationEngine {
     if (inc.observationId) this.patchObservation(inc.observationId, (o) => (o.status === 'validated' ? o : { ...o, status: 'cleared', updatedAt: now }));
     if (this.activeRun?.runId === inc.scenarioRunId) {
       for (const k of Object.keys(this.feedStale)) this.feedStale[k] = null;
+      this.team.release(now);
       this.teamTask = null;
       this.activeRun = null;
       this.steps = [];
@@ -1018,6 +1112,11 @@ export class SimulationEngine {
     return this.effects.filter((e) => isEffectLive(e, t));
   }
 
+  /** Fire: °C above ambient at its seat, including the cooling equipment once the flames are out. */
+  fireTempAt(e: Effect, t: number) {
+    return e.amplitude * envelope(e, t) + this.fireResidual(e, t);
+  }
+
   windDirAt(t: number): number {
     if (t >= this.now - 500) return this.weather.smoothDir;
     return history.get('windDir')?.sample(t) ?? this.weather.smoothDir;
@@ -1034,6 +1133,10 @@ export class SimulationEngine {
 
   uavPose(t: number): Pose {
     return this.uav.pose(t);
+  }
+
+  teamPose(i: number, t: number): Pose {
+    return this.team.pose(i, t);
   }
 
   isFeedStale(id: string) {

@@ -202,12 +202,20 @@ export function RenderLoop() {
     // thermal hotspots from the synthetic effects (shared by every heat material)
     thermalUniforms.uTime.value += delta;
     let hc = 0;
-    for (const e of engine.liveEffects(t)) {
-      if (e.kind !== 'thermal' || hc >= 4) continue;
-      const env = envelope(e, t);
-      if (env <= 0.001) continue;
-      thermalUniforms.uHotspots.value[hc].set(e.x, e.z, 3.2, (e.amplitude / 50) * env);
-      hc++;
+    for (const e of engine.effects) {
+      if (hc >= 4 || t < e.t0) continue;
+      if (e.kind === 'thermal') {
+        const env = envelope(e, t);
+        if (env <= 0.001) continue;
+        thermalUniforms.uHotspots.value[hc].set(e.x, e.z, 3.2, (e.amplitude / 50) * env);
+        hc++;
+      } else if (e.kind === 'fire') {
+        // the seat of a fire saturates the camera; the skid keeps glowing while it cools
+        const heat = Math.min(6, engine.fireTempAt(e, t) / 60);
+        if (heat <= 0.01) continue;
+        thermalUniforms.uHotspots.value[hc].set(e.x, e.z, 2.6, heat);
+        hc++;
+      }
     }
     thermalUniforms.uHotCount.value = hc;
 

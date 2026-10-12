@@ -1,5 +1,5 @@
 import { useMemo, useState, type ReactNode } from 'react';
-import { ListChecks, Radiation, FlaskConical, Biohazard, Bot, Cpu, BrainCircuit, ChevronRight, ChevronDown, Crosshair, Siren, Inbox } from 'lucide-react';
+import { ListChecks, Radiation, FlaskConical, Biohazard, Flame, Bot, Cpu, BrainCircuit, ChevronRight, ChevronDown, Crosshair, Siren, Inbox } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useSim } from '../../store/sim';
 import { useUI, type EventFilter } from '../../store/ui';
@@ -13,6 +13,7 @@ export const EVENT_ICON: Record<EventCategory, LucideIcon> = {
   chem: FlaskConical,
   bio: Biohazard,
   rad: Radiation,
+  fire: Flame,
   asset: Bot,
   system: Cpu,
   ai: BrainCircuit,

@@ -192,23 +192,26 @@ function RadField({ effect }: { effect: Effect }) {
 
 const SEVERITY_COLOR = { low: new THREE.Color('#f2b33d'), moderate: new THREE.Color('#ff8a3d'), high: new THREE.Color('#f0534d') };
 
-function IncidentBeacon({ x, z, severity }: { x: number; z: number; severity: 'low' | 'moderate' | 'high' }) {
+/** Ground rings plus a light column; a fire gets no column (its own smoke marks the spot). */
+function IncidentBeacon({ x, z, severity, column = true }: { x: number; z: number; severity: 'low' | 'moderate' | 'high'; column?: boolean }) {
   const { group, uniforms } = useMemo(() => {
     const uniforms = { uColor: { value: SEVERITY_COLOR[severity].clone() }, uTime: { value: 0 }, uOpacity: { value: 1 } };
     const g = new THREE.Group();
-    const beamGeo = new THREE.CylinderGeometry(2.4, 2.4, 140, 24, 1, true);
-    beamGeo.translate(0, 70, 0);
-    const beam = new THREE.Mesh(beamGeo, new THREE.ShaderMaterial({ uniforms, vertexShader: UV_VERT, fragmentShader: BEAM_FRAG, transparent: true, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending }));
     const ringGeo = new THREE.PlaneGeometry(60, 60);
     ringGeo.rotateX(-Math.PI / 2);
     const ring = new THREE.Mesh(ringGeo, new THREE.ShaderMaterial({ uniforms, vertexShader: UV_VERT, fragmentShader: RING_FRAG, transparent: true, depthWrite: false }));
     ring.position.y = 1.1;
-    g.add(beam, ring);
+    g.add(ring);
+    if (column) {
+      const beamGeo = new THREE.CylinderGeometry(2.4, 2.4, 140, 24, 1, true);
+      beamGeo.translate(0, 70, 0);
+      g.add(new THREE.Mesh(beamGeo, new THREE.ShaderMaterial({ uniforms, vertexShader: UV_VERT, fragmentShader: BEAM_FRAG, transparent: true, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending })));
+    }
     g.position.set(x, 0, z);
     g.traverse((o) => o.layers.set(LAYER.OVERLAY));
     g.renderOrder = 3;
     return { group: g, uniforms };
-  }, [x, z, severity]);
+  }, [x, z, severity, column]);
   useEffect(
     () => () =>
       group.traverse((o) => {
@@ -238,7 +241,7 @@ export function IncidentLayer() {
         <RadField key={e.id} effect={e} />
       ))}
       {active.map((i) => (
-        <IncidentBeacon key={i.id} x={i.location.x} z={i.location.z} severity={i.severity} />
+        <IncidentBeacon key={i.id} x={i.location.x} z={i.location.z} severity={i.severity} column={i.category !== 'fire'} />
       ))}
     </group>
   );

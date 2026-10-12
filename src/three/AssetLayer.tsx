@@ -5,37 +5,52 @@ import { MODELS, prepareModel, useModel } from './models';
 import { registerThermalTree } from './thermal';
 import { registerPickable } from './picking';
 import { engine } from '../simulation/engine';
-import { teamPose, RESPONSE_VEHICLE_POSE } from '../simulation/assets';
+import { RESPONSE_VEHICLE_POSE } from '../simulation/assets';
 import { SENSORS } from '../simulation/sensors';
 import { sceneClock } from './sceneClock';
 import { angleDeltaRad, clamp } from '../utils/math';
+import { QuadrupedRig, DOG_SCALE, type DogState } from './robots/quadruped';
+import { QuadcopterRig, UAV_SCALE } from './robots/quadcopter';
+import { launchElevation } from './robots/spray';
 
-export const UGV_SCALE = 1.6;
-export const UAV_SCALE = 2.6;
+export const UGV_SCALE = DOG_SCALE;
+export { UAV_SCALE };
 
-/** Damped visual state of moving assets (read by feed cameras and DOM overlays). */
+/** Damped visual state of moving assets (read by feed cameras, the fire layer and DOM overlays). */
 export const assetVisual = {
-  ugv: { x: 0, y: 0, z: 0, heading: 0, speed: 0, ready: false },
+  ugv: {
+    x: 0,
+    y: 0,
+    z: 0,
+    heading: 0,
+    speed: 0,
+    ready: false,
+    /** front camera pose (world) for the robot's video feed */
+    cam: new THREE.Vector3(),
+    camDir: new THREE.Vector3(0, 0, 1),
+    /** suppression nozzle tip and jet direction (world) */
+    nozzle: new THREE.Vector3(),
+    nozzleDir: new THREE.Vector3(0, 0, 1),
+    spraying: false,
+    washing: false,
+  },
   uav: { x: 0, y: 120, z: 0, heading: 0, roll: 0, ready: false },
   team: [0, 1, 2].map(() => ({ x: 0, z: 0, heading: 0 })),
 };
+
+/** Status light colour by activity: green on patrol, amber responding, red spraying, cyan in decon. */
+function statusFor(state: DogState, washing: boolean, responding: boolean, t: number): [string, number] {
+  if (state.mode === 'spray') return ['#ff3b30', Math.floor(t / 260) % 2 ? 5 : 1.2];
+  if (washing) return ['#3cc8dc', 3.5];
+  if (state.mode === 'sit') return ['#3dd68c', 1.5 + 1.5 * Math.sin(t / 600)];
+  if (responding) return ['#f2b33d', Math.floor(t / 420) % 2 ? 4 : 1];
+  return ['#3dd68c', 3];
+}
 
 function pickBox(w: number, h: number, d: number, y = h / 2) {
   const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), new THREE.MeshBasicMaterial({ visible: false }));
   m.position.y = y;
   return m;
-}
-
-function findMaterial(root: THREE.Object3D, name: string): THREE.MeshStandardMaterial | null {
-  let found: THREE.MeshStandardMaterial | null = null;
-  root.traverse((o) => {
-    const mesh = o as THREE.Mesh;
-    if (!found && mesh.isMesh) {
-      const m = mesh.material as THREE.MeshStandardMaterial;
-      if (m.name === name) found = m;
-    }
-  });
-  return found;
 }
 
 function SensorNodes() {
@@ -68,34 +83,42 @@ function SensorNodes() {
 }
 
 export function AssetLayer() {
-  const ugvGltf = useModel(MODELS.ugv);
-  const uavGltf = useModel(MODELS.uav);
   const personGltf = useModel(MODELS.person);
   const vehicleGltf = useModel(MODELS.vehicle);
 
+  // UGV-01: procedural quadruped (three.js), see robots/quadruped.ts
   const ugv = useMemo(() => {
     const g = new THREE.Group();
     g.name = 'UGV-01';
-    const body = ugvGltf.scene;
-    body.scale.setScalar(UGV_SCALE);
-    prepareModel(body);
-    g.add(body);
-    const proxy = pickBox(5, 4, 6);
+    const rig = new QuadrupedRig();
+    rig.root.name = 'ugv-rig';
+    prepareModel(rig.root);
+    g.add(rig.root);
+    const proxy = pickBox(2.4, 2.2, 2.8);
     g.add(proxy);
-    return { group: g, proxy, beacon: findMaterial(body, 'beacon_amber') };
-  }, [ugvGltf]);
+    return { group: g, proxy, rig };
+  }, []);
 
+  // UAV-01: procedural quadcopter (three.js), see robots/quadcopter.ts
   const uav = useMemo(() => {
     const g = new THREE.Group();
     g.name = 'UAV-01';
-    const body = uavGltf.scene;
-    body.scale.setScalar(UAV_SCALE);
-    prepareModel(body, { cast: true, receive: false });
-    g.add(body);
-    const proxy = pickBox(12, 8, 12, 0);
+    const rig = new QuadcopterRig();
+    rig.root.name = 'uav-rig';
+    prepareModel(rig.root, { cast: true, receive: false });
+    g.add(rig.root);
+    const proxy = pickBox(9, 5, 9, 0);
     g.add(proxy);
-    return { group: g, body, proxy };
-  }, [uavGltf]);
+    return { group: g, proxy, rig };
+  }, []);
+
+  useEffect(
+    () => () => {
+      ugv.rig.dispose();
+      uav.rig.dispose();
+    },
+    [ugv, uav],
+  );
 
   const team = useMemo(
     () =>
@@ -139,12 +162,15 @@ export function AssetLayer() {
     return () => offs.forEach((f) => f());
   }, [ugv, uav, vehicle, team]);
 
+  const aimTarget = useMemo(() => new THREE.Vector3(), []);
+  const lookAt = useMemo(() => new THREE.Vector3(), []);
+
   useFrame((_, delta) => {
     const dt = Math.min(delta, 0.1);
     const t = sceneClock.t;
     const k = 1 - Math.exp(-dt * 7);
 
-    // UGV
+    // UGV: pose from the engine plan, gait / turret / sit from its activity
     const p = engine.ugvPose(t);
     const v = assetVisual.ugv;
     if (!v.ready || sceneClock.replay) {
@@ -155,12 +181,22 @@ export function AssetLayer() {
     v.x = p.x;
     v.z = p.z;
     v.speed = p.speed;
-    ugv.group.position.set(p.x, 0.02 + (p.speed > 0.3 ? Math.sin(performance.now() / 70) * 0.012 : 0), p.z);
+    ugv.group.position.set(p.x, 0, p.z);
     ugv.group.rotation.y = v.heading;
-    if (ugv.beacon) {
-      const on = Math.floor(performance.now() / 420) % 2 === 0;
-      ugv.beacon.emissiveIntensity = on ? 7 : 0.6;
+    const act = engine.ugv.activity(t);
+    const state: DogState = { speed: p.speed, mode: act.mode, aim: null };
+    if (act.mode === 'spray' && act.target) {
+      aimTarget.set(act.target.x, 1.2, act.target.z);
+      state.aim = { target: aimTarget, elevation: launchElevation(v.nozzle, aimTarget) };
     }
+    ugv.rig.update(dt, state);
+    const seg = engine.ugv.current(t);
+    const [hex, glow] = statusFor(state, !!act.washing, seg.type === 'route' && seg.purpose === 'respond', performance.now());
+    ugv.rig.setStatus(hex, glow);
+    ugv.rig.cameraWorld(v.cam, v.camDir);
+    ugv.rig.nozzleWorld(v.nozzle, v.nozzleDir);
+    v.spraying = !!act.spraying;
+    v.washing = !!act.washing;
 
     // UAV with banking into turns
     const q = engine.uavPose(t);
@@ -178,11 +214,15 @@ export function AssetLayer() {
     u.z = q.z;
     uav.group.position.set(u.x, u.y, u.z);
     uav.group.rotation.set(0, u.heading, 0);
-    uav.body.rotation.set(0.07, 0, u.roll);
+    // nose down into forward flight, banked into turns
+    uav.rig.body.rotation.set(Math.min(0.2, 0.012 * q.speed), 0, u.roll);
+    const lt = engine.uav.lookTarget(t);
+    lookAt.set(lt.x, lt.y, lt.z);
+    uav.rig.update(dt, lookAt);
 
     // survey team
     team.forEach((m, i) => {
-      const tp = teamPose(i, t);
+      const tp = engine.teamPose(i, t);
       const walk = tp.speed > 0.1;
       m.group.position.set(tp.x, walk ? Math.abs(Math.sin(performance.now() / 300)) * 0.035 : 0, tp.z);
       m.group.rotation.y = tp.heading;

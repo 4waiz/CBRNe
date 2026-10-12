@@ -39,11 +39,28 @@ export type UgvSegment =
       vmax: number;
       accel: number;
       duration: number;
-      purpose: 'inspect' | 'return';
+      /** inspect / return: road dispatches · respond / tent / dock: fire-response legs (off-road where needed) */
+      purpose: 'inspect' | 'return' | 'respond' | 'tent' | 'dock';
       lookAt: Vec2 | null;
       label: string;
     }
-  | { type: 'hold'; t0: number; x: number; z: number; heading: number; lookAt: Vec2 | null; label: string; mode: 'inspecting' | 'holding' };
+  | { type: 'hold'; t0: number; x: number; z: number; heading: number; lookAt: Vec2 | null; label: string; mode: 'inspecting' | 'holding' }
+  /** stationary at the stand-off point, turret spraying water mist at `target` from t0 + 0.8 s to t0 + duration */
+  | { type: 'suppress'; t0: number; x: number; z: number; heading: number; target: Vec2; duration: number; label: string }
+  /** standing in the decontamination shelter while the wash runs */
+  | { type: 'decon'; t0: number; x: number; z: number; heading: number; duration: number; label: string }
+  /** sitting on the dock pad, recharging */
+  | { type: 'charge'; t0: number; x: number; z: number; heading: number; duration: number; label: string };
+
+/** What the robot's body is doing (drives the gait, turret and status light in the 3D layer). */
+export interface UgvActivity {
+  mode: 'walk' | 'stand' | 'spray' | 'sit';
+  /** spray: the point the turret aims at, and whether water is flowing yet */
+  target?: Vec2;
+  spraying?: boolean;
+  /** decon: wash running */
+  washing?: boolean;
+}
 
 function routeDuration(L: number, vmax: number, a: number) {
   const ta = vmax / a;
@@ -138,7 +155,43 @@ export class UgvController {
         }
         return { x: seg.x, y: 0, z: seg.z, heading, speed: 0 };
       }
+      case 'suppress': {
+        const target = Math.atan2(seg.target.x - seg.x, seg.target.z - seg.z);
+        const k = smoothstep(0, 1, (t - seg.t0) / 900);
+        return { x: seg.x, y: 0, z: seg.z, heading: seg.heading + angleDeltaRad(seg.heading, target) * k, speed: 0 };
+      }
+      case 'decon':
+      case 'charge':
+        return { x: seg.x, y: 0, z: seg.z, heading: seg.heading, speed: 0 };
     }
+  }
+
+  /** Body activity at time t (for the 3D model). */
+  activity(t: number): UgvActivity {
+    const seg = this.current(t);
+    switch (seg.type) {
+      case 'suppress': {
+        const lt = (t - seg.t0) / 1000;
+        return { mode: 'spray', target: seg.target, spraying: lt > 0.8 && lt < seg.duration - 0.6 };
+      }
+      case 'decon':
+        return { mode: 'stand', washing: (t - seg.t0) / 1000 < seg.duration - 0.5 };
+      case 'charge':
+        return { mode: (t - seg.t0) / 1000 < seg.duration - 1.6 ? 'sit' : 'stand' };
+      case 'hold':
+        return { mode: 'stand' };
+      case 'route': {
+        const tau = (t - seg.t0) / 1000;
+        return { mode: tau < seg.duration ? 'walk' : 'stand' };
+      }
+      default:
+        return { mode: 'walk' };
+    }
+  }
+
+  /** Drops plan segments scheduled after t, so a new plan replaces them (keeps t0 order). */
+  private replan(t: number) {
+    while (this.segments.length > 1 && this.segments[this.segments.length - 1].t0 > t) this.segments.pop();
   }
 
   /** Route end time for the active route segment (null when not routing). */
@@ -156,24 +209,62 @@ export class UgvController {
     return { distance: Math.max(0, seg.path.length - s), eta: Math.max(0, seg.duration - tau) };
   }
 
-  dispatch(t: number, target: Vec2, lookAt: Vec2 | null, purpose: 'inspect' | 'return', label: string) {
+  dispatch(t: number, target: Vec2, lookAt: Vec2 | null, purpose: 'inspect' | 'return' | 'respond', label: string, vmax = 8) {
     const p = this.pose(t);
+    this.replan(t);
     const raw = ROADS.route({ x: p.x, z: p.z }, target);
     const path = new Polyline(filletPath(raw, 9, 7));
-    const vmax = 8;
-    const accel = 1.4;
+    const accel = vmax > 8 ? 2.2 : 1.4;
     const duration = routeDuration(path.length, vmax, accel);
     this.segments.push({ type: 'route', t0: t, path, vmax, accel, duration, purpose, lookAt, label });
     return { distance: path.length, duration, path };
   }
 
+  /** Walks a given path (off-road), starting at t0 (may be in the future). Returns the arrival time. */
+  walk(t0: number, points: Vec2[], purpose: 'tent' | 'dock', label: string, vmax = 2.6) {
+    const path = new Polyline(filletPath(points, 4, 6));
+    const accel = 1.1;
+    const duration = routeDuration(path.length, vmax, accel);
+    this.segments.push({ type: 'route', t0, path, vmax, accel, duration, purpose, lookAt: null, label });
+    return t0 + duration * 1000;
+  }
+
   hold(t: number, mode: 'inspecting' | 'holding', label: string, lookAt: Vec2 | null) {
     const p = this.pose(t);
+    this.replan(t);
     this.segments.push({ type: 'hold', t0: t, x: p.x, z: p.z, heading: p.heading, lookAt, label, mode });
   }
 
+  /**
+   * Fire-response plan from the stand-off point: spray, walk to the decontamination shelter, wash, walk to
+   * the dock, recharge, then return to patrol. All segments are scheduled now (replayable); returns the
+   * phase times (ms).
+   */
+  firePlan(t: number, o: { target: Vec2; toTent: Vec2[]; toDock: Vec2[]; spray: number; wash: number; charge: number }) {
+    const p = this.pose(t);
+    this.replan(t);
+    this.segments.push({ type: 'suppress', t0: t, x: p.x, z: p.z, heading: p.heading, target: o.target, duration: o.spray, label: 'Suppressing · water mist' });
+    const sprayStart = t + 800;
+    const sprayEnd = t + o.spray * 1000;
+    const toTent = [{ x: p.x, z: p.z }, ...o.toTent.slice(1)];
+    const deconStart = this.walk(sprayEnd, toTent, 'tent', 'To decontamination · DECON-1');
+    const last = toTent[toTent.length - 1];
+    const prev = toTent[toTent.length - 2];
+    const inHeading = Math.atan2(last.x - prev.x, last.z - prev.z);
+    this.segments.push({ type: 'decon', t0: deconStart, x: last.x, z: last.z, heading: inHeading, duration: o.wash, label: 'Decontamination · DECON-1' });
+    const deconEnd = deconStart + o.wash * 1000;
+    const chargeStart = this.walk(deconEnd, o.toDock, 'dock', 'Returning to dock');
+    const dock = o.toDock[o.toDock.length - 1];
+    const before = o.toDock[o.toDock.length - 2];
+    this.segments.push({ type: 'charge', t0: chargeStart, x: dock.x, z: dock.z, heading: Math.atan2(dock.x - before.x, dock.z - before.z), duration: o.charge, label: 'Recharging at dock' });
+    const chargeEnd = chargeStart + o.charge * 1000;
+    this.returnToPatrol(chargeEnd, false);
+    return { sprayStart, sprayEnd, deconStart, deconEnd, chargeStart, chargeEnd };
+  }
+
   /** Route back to the nearest point of the patrol loop, then resume patrolling from there. */
-  returnToPatrol(t: number) {
+  returnToPatrol(t: number, replan = true) {
+    if (replan) this.replan(t);
     const p = this.pose(t);
     let bestS = 0;
     let bestD = Infinity;
@@ -187,7 +278,12 @@ export class UgvController {
       return;
     }
     const target = UGV_PATROL.at(bestS);
-    const { duration } = this.dispatch(t, target, null, 'return', 'Returning to patrol');
+    const raw = ROADS.route({ x: p.x, z: p.z }, target);
+    const path = new Polyline(filletPath(raw, 9, 7));
+    const vmax = 8;
+    const accel = 1.4;
+    const duration = routeDuration(path.length, vmax, accel);
+    this.segments.push({ type: 'route', t0: t, path, vmax, accel, duration, purpose: 'return', lookAt: null, label: 'Returning to patrol' });
     this.segments.push({ type: 'patrol', t0: t + duration * 1000, s0: bestS, speed: this.patrolSpeed });
   }
 
@@ -283,12 +379,12 @@ export class UavController {
     return { x: fx * 0.82, y: 0, z: fz * 0.82 - 20 };
   }
 
-  orbit(t: number, cx: number, cz: number, label: string) {
+  orbit(t: number, cx: number, cz: number, label: string, o: { r?: number; alt?: number; speed?: number } = {}) {
     const p = this.pose(t);
-    const r = 150;
-    const v = 14;
+    const r = o.r ?? 150;
+    const v = o.speed ?? 14;
     const phase0 = Math.atan2(p.z - cz, p.x - cx);
-    this.segments.push({ type: 'orbit', t0: t, cx, cz, r, alt: 96, omega: v / r, phase0, label });
+    this.segments.push({ type: 'orbit', t0: t, cx, cz, r, alt: o.alt ?? 96, omega: v / r, phase0, label });
   }
 
   resumePerimeter(t: number) {
@@ -341,3 +437,80 @@ export function teamPose(index: number, t: number): Pose {
 }
 
 export const RESPONSE_VEHICLE_POSE: Pose = { x: 470, y: 0, z: 192.5, heading: -Math.PI / 2, speed: 0 };
+
+type TeamSegment = { type: 'routine'; t0: number } | { type: 'muster'; t0: number; from: Vec2[]; to: Vec2[]; face: Vec2; label: string } | { type: 'return'; t0: number; from: Vec2[] };
+
+const WALK = 1.7; // m/s, brisk walk
+/** Spots the three members take at an assembly point: a short line facing the incident. */
+const MUSTER_SLOTS = [
+  { x: 0, z: 0 },
+  { x: -1.6, z: 1.1 },
+  { x: 1.5, z: 1.3 },
+];
+
+/** Survey team: routine yard work, or a withdrawal to an assembly point and back (replayable plan). */
+export class TeamController {
+  segments: TeamSegment[];
+
+  constructor(t0: number) {
+    this.segments = [{ type: 'routine', t0 }];
+  }
+
+  current(t: number) {
+    return this.segments[findSegment(this.segments, t)];
+  }
+
+  prune(before: number) {
+    pruneSegments(this.segments, before);
+  }
+
+  pose(i: number, t: number): Pose {
+    const seg = this.current(t);
+    if (seg.type === 'routine') return teamPose(i, t);
+    if (seg.type === 'muster') return walkTo(seg.from[i], seg.to[i], (t - seg.t0) / 1000, Math.atan2(seg.face.x - seg.to[i].x, seg.face.z - seg.to[i].z));
+    // return: walk back to the member's routine position (member 1 keeps walking its loop, so chase it)
+    const goal = teamPose(i, t);
+    const p = walkTo(seg.from[i], { x: goal.x, z: goal.z }, (t - seg.t0) / 1000, goal.heading);
+    return p.speed > 0 ? p : goal;
+  }
+
+  /** Is anyone still walking (or mustered)? */
+  mustered(t: number) {
+    return this.current(t).type === 'muster';
+  }
+
+  muster(t: number, point: Vec2, face: Vec2, label: string) {
+    const from = [0, 1, 2].map((i) => {
+      const p = this.pose(i, t);
+      return { x: p.x, z: p.z };
+    });
+    const to = MUSTER_SLOTS.map((o) => ({ x: point.x + o.x, z: point.z + o.z }));
+    while (this.segments.length > 1 && this.segments[this.segments.length - 1].t0 > t) this.segments.pop();
+    this.segments.push({ type: 'muster', t0: t, from, to, face, label });
+    return t + (Math.max(...from.map((f, i) => Math.hypot(to[i].x - f.x, to[i].z - f.z))) / WALK) * 1000;
+  }
+
+  release(t: number) {
+    if (this.current(t).type !== 'muster') return;
+    const from = [0, 1, 2].map((i) => {
+      const p = this.pose(i, t);
+      return { x: p.x, z: p.z };
+    });
+    this.segments.push({ type: 'return', t0: t, from });
+    // back on routine once the farthest member is home
+    const far = Math.max(...from.map((f, i) => {
+      const g = teamPose(i, t + 30000);
+      return Math.hypot(g.x - f.x, g.z - f.z);
+    }));
+    this.segments.push({ type: 'routine', t0: t + (far / WALK + 4) * 1000 });
+  }
+}
+
+function walkTo(from: Vec2, to: Vec2, tau: number, faceAfter: number): Pose {
+  const dx = to.x - from.x;
+  const dz = to.z - from.z;
+  const L = Math.hypot(dx, dz);
+  const s = Math.min(L, Math.max(0, tau) * WALK);
+  if (L < 0.01 || s >= L) return { x: to.x, y: 0, z: to.z, heading: faceAfter, speed: 0 };
+  return { x: from.x + (dx / L) * s, y: 0, z: from.z + (dz / L) * s, heading: Math.atan2(dx, dz), speed: WALK };
+}

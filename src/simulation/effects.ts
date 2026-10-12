@@ -4,7 +4,7 @@ import { smoothstep } from '../utils/math';
 // sensor readings in the engine and the GPU overlays in the digital twin, so what the operator
 // sees on the map is exactly what the sensors are reporting.
 
-export type EffectKind = 'rad' | 'chem' | 'bio' | 'thermal' | 'dropout';
+export type EffectKind = 'rad' | 'chem' | 'bio' | 'thermal' | 'dropout' | 'fire' | 'decon';
 
 export interface Effect {
   id: string;
@@ -12,7 +12,10 @@ export interface Effect {
   kind: EffectKind;
   x: number;
   z: number;
-  /** rad: µSv/h peak · chem: ppm peak · bio: index points · thermal: °C above ambient */
+  /**
+   * rad: µSv/h peak · chem: ppm peak · bio: index points · thermal / fire: °C above ambient ·
+   * decon: deployed shelter (1); the envelope is its inflation / pack-up
+   */
   amplitude: number;
   /** characteristic spatial scale in metres */
   sigma: number;

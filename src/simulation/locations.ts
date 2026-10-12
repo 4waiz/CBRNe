@@ -77,6 +77,18 @@ export const LOCATIONS: ScenarioLocation[] = [
     sensors: { rad: ['RAD-S18'], chem: ['AIR-C09'], bio: ['BIO-A07'] },
   },
   {
+    id: 'YARD',
+    label: 'Service yard · generator skid G2',
+    short: 'Service yard',
+    sector: 'Service zone',
+    zoneId: 'SERVICE',
+    x: 484,
+    z: 228,
+    inspect: { x: 474.5, z: 219.5 },
+    equipment: 'Generator skid G2',
+    sensors: { rad: ['RAD-S24'], chem: ['AIR-C08', 'AIR-C14'], bio: ['BIO-A13'] },
+  },
+  {
     id: 'INTAKE',
     label: 'Marine intake · Unit 3 forebay',
     short: 'Unit 3 intake',
@@ -91,3 +103,31 @@ export const LOCATIONS: ScenarioLocation[] = [
 ];
 
 export const LOCATION_BY_ID: Record<string, ScenarioLocation> = Object.fromEntries(LOCATIONS.map((l) => [l.id, l]));
+
+/**
+ * Fire-response layout in the service yard (fictional): the generator skid that catches fire, the robot's
+ * upwind stand-off point, the inflatable decontamination shelter DECON-1 west of the robotics garage, the
+ * robot dock and the personnel assembly point. The robot walks off-road between them on these paths.
+ */
+export const FIRE_SITE = {
+  fire: { x: 484, z: 228 },
+  /** generator skid: centre and long-axis heading (radians, three.js rotation.y) */
+  skid: { x: 484, z: 228, heading: Math.PI / 2 },
+  standoff: { x: 474.5, z: 219.5 },
+  /** DECON-1: long axis along x, entered from the east (dirty side), left by the west door (clean side) */
+  tent: { x: 420, z: 256, length: 10, width: 5.4, height: 3.1 },
+  toTent: [
+    { x: 474.5, z: 219.5 },
+    { x: 469, z: 246 },
+    { x: 436, z: 256 },
+    { x: 420, z: 256 },
+  ] as Vec2[],
+  toDock: [
+    { x: 420, z: 256 },
+    { x: 406, z: 256 },
+    { x: 406, z: 241 },
+    { x: 419, z: 232.5 },
+  ] as Vec2[],
+  dock: { x: 419, z: 232.5 },
+  assembly: { x: 410, z: 186 },
+} as const;

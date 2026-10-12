@@ -10,7 +10,7 @@ export const TONE_HEX: Record<Tone, string> = {
   offline: '#6b7785',
 };
 
-export const CATEGORY_HEX: Record<Category | 'thermal' | 'network' | 'multi' | 'asset' | 'system' | 'ai', string> = {
+export const CATEGORY_HEX: Record<Category | 'thermal' | 'network' | 'multi' | 'fire' | 'asset' | 'system' | 'ai', string> = {
   // categorical CBRN identity — validated (dark, #121922 + #0b0f14): lightness band, chroma,
   // CVD ΔE ≥ 13.4 and normal-vision ΔE ≥ 18.2 across all pairs
   chem: '#16a894',
@@ -20,6 +20,7 @@ export const CATEGORY_HEX: Record<Category | 'thermal' | 'network' | 'multi' | '
   thermal: '#e0574a',
   network: '#a7b1bb',
   multi: '#d96f2a',
+  fire: '#ff6a3d',
   asset: '#4c94ff',
   system: '#a7b1bb',
   ai: '#b4a8ff',
@@ -46,6 +47,7 @@ export const EVENT_CATEGORY_LABEL: Record<EventCategory, string> = {
   chem: 'Chemical',
   bio: 'Biological',
   rad: 'Radiological',
+  fire: 'Fire',
   asset: 'Assets',
   system: 'System',
   ai: 'AI fusion',
@@ -59,4 +61,5 @@ export const INCIDENT_CATEGORY_LABEL: Record<IncidentCategory, string> = {
   thermal: 'Thermal',
   network: 'Network',
   multi: 'Multi-source',
+  fire: 'Fire',
 };

@@ -41,7 +41,7 @@ function lookAtFrom(target: THREE.Vector3, distance: number, polar: number, smoo
 }
 
 function assetPosition(id: AssetId): THREE.Vector3 {
-  if (id === 'UGV-01') return new THREE.Vector3(assetVisual.ugv.x, 2, assetVisual.ugv.z);
+  if (id === 'UGV-01') return new THREE.Vector3(assetVisual.ugv.x, 1, assetVisual.ugv.z);
   if (id === 'UAV-01') return new THREE.Vector3(assetVisual.uav.x, assetVisual.uav.y, assetVisual.uav.z);
   if (id === 'TEAM-1') return new THREE.Vector3(assetVisual.team[0].x, 1, assetVisual.team[0].z);
   return new THREE.Vector3(RESPONSE_VEHICLE_POSE.x, 2, RESPONSE_VEHICLE_POSE.z);
@@ -60,7 +60,7 @@ export function focusOn(target: FocusTarget | Exclude<Selection, null>) {
     }
     case 'asset': {
       const p = assetPosition(target.id);
-      lookAtFrom(p, target.id === 'UAV-01' ? 210 : target.id === 'UGV-01' ? 95 : 110, target.id === 'UAV-01' ? 1.0 : 0.95);
+      lookAtFrom(p, target.id === 'UAV-01' ? 210 : target.id === 'UGV-01' ? 60 : 110, target.id === 'UAV-01' ? 1.0 : 0.95);
       ui.setFollow(target.id === 'UGV-01' || target.id === 'UAV-01' || target.id === 'TEAM-1' ? target.id : null);
       return;
     }
@@ -219,7 +219,7 @@ export function CameraRig() {
     if (tmpTarget.current.distanceTo(p) > 120) {
       // large jump (replay scrub, re-tasking): re-frame from a clean angle instead of dragging
       // the camera through buildings
-      lookAtFrom(p, follow === 'UAV-01' ? 210 : 95, follow === 'UAV-01' ? 1.0 : 0.95);
+      lookAtFrom(p, follow === 'UAV-01' ? 210 : follow === 'UGV-01' ? 60 : 95, follow === 'UAV-01' ? 1.0 : 0.95);
       return;
     }
     void c.moveTo(p.x, p.y, p.z, true);
