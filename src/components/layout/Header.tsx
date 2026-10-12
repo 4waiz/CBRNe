@@ -104,9 +104,7 @@ export function Header() {
         <BridgeLogo height={22} />
         <span className="h-7 w-px bg-line-strong" aria-hidden />
         <div className="hidden flex-col leading-none lg:flex">
-          <span className="whitespace-nowrap font-cond text-[13.5px] font-semibold tracking-[0.13em] text-ink-1 max-[1500px]:text-[12px]">BARAKAH CBRN COMMAND CENTER</span>
-          <span className="mt-[4px] whitespace-nowrap text-[10.5px] tracking-[0.02em] text-ink-3 max-[1500px]:hidden">Integrated CBRN Situational Awareness • Abu Dhabi, UAE</span>
-          <span className="mt-[4px] hidden whitespace-nowrap text-[10px] text-ink-3 max-[1500px]:block">Integrated Situational Awareness</span>
+          <span className="whitespace-nowrap font-cond text-[13.5px] font-semibold tracking-[0.13em] text-ink-1 max-[1500px]:text-[12px]">CBRN COMMAND CENTER</span>
         </div>
       </div>
 
