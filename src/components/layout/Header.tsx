@@ -2,7 +2,7 @@ import { Box, Cctv, BrainCircuit, LayoutDashboard, Siren, Settings, Command, Shi
 import type { LucideIcon } from 'lucide-react';
 import { useSim } from '../../store/sim';
 import { useUI, type Screen } from '../../store/ui';
-import { LogoMark } from './Logo';
+import { BridgeLogo } from './Logo';
 import { fmtClock, fmtDate } from '../../utils/format';
 import { cx, IconButton, useNow } from '../ui/primitives';
 import { TONE_HEX } from '../ui/tone';
@@ -101,8 +101,7 @@ export function Header() {
   return (
     <header className="relative z-20 flex h-[52px] shrink-0 items-center gap-3 border-b border-line bg-bg-1/95 px-4">
       <div className="flex shrink-0 items-center gap-3">
-        <LogoMark size={26} />
-        <span className="font-cond text-[20px] font-semibold tracking-[0.24em] text-ink-1">ENCIRRA</span>
+        <BridgeLogo height={22} />
         <span className="h-7 w-px bg-line-strong" aria-hidden />
         <div className="hidden flex-col leading-none lg:flex">
           <span className="whitespace-nowrap font-cond text-[13.5px] font-semibold tracking-[0.13em] text-ink-1 max-[1500px]:text-[12px]">BARAKAH CBRN COMMAND CENTER</span>

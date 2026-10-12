@@ -62,7 +62,7 @@ function SensorView({ id }: { id: string }) {
         </span>
         <div className="min-w-0">
           <div className="mono text-[14px] font-medium text-ink-1">{id}</div>
-          <div className="truncate text-[11px] text-ink-3">
+          <div className="line-clamp-2 text-[11px] leading-[15px] text-ink-3">
             {SENSOR_KIND_LABEL[def.kind]} · {def.name}
           </div>
         </div>

@@ -3,7 +3,7 @@ import { Check } from 'lucide-react';
 import { useProgress } from '@react-three/drei';
 import { useSim } from '../../store/sim';
 import { useSceneStatus } from '../../three/sceneStatus';
-import { LogoMark } from '../layout/Logo';
+import { BridgeLogo } from '../layout/Logo';
 import { cx } from '../ui/primitives';
 
 /** Start-up sequence: engine → telemetry buffers → digital twin assets → camera network. */
@@ -45,12 +45,9 @@ export function BootScreen() {
   return (
     <div className={cx('fixed inset-0 z-[60] flex items-center justify-center bg-bg-0 transition-opacity duration-500', fading && 'opacity-0')} role="status" aria-live="polite">
       <div className="w-[340px]">
-        <div className="flex items-center gap-3">
-          <LogoMark size={34} />
-          <div>
-            <div className="font-cond text-[22px] font-semibold tracking-[0.26em] text-ink-1">ENCIRRA</div>
-            <div className="text-[11px] text-ink-3">Integrated CBRN Situational Awareness</div>
-          </div>
+        <div className="flex flex-col items-start gap-2.5">
+          <BridgeLogo height={30} />
+          <div className="text-[11px] text-ink-3">Integrated CBRN Situational Awareness</div>
         </div>
         <div className="mt-6 flex flex-col gap-2">
           {steps.map((s, i) => (

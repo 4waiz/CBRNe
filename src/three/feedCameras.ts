@@ -21,7 +21,7 @@ export const FIXED_CAMS: Record<'CAM-01' | 'CAM-02', FixedCam> = {
 export const FEED_META: Record<FeedSource, { label: string; short: string; kind: string; fps: number; res: string; codec: string; kbps: number; link: string }> = {
   'CAM-01': { label: 'Exterior · Units 1–4', short: 'Units 1–4', kind: 'Fixed PTZ', fps: 25, res: '1920×1080', codec: 'H.265 · CBR', kbps: 6200, link: 'Fibre · campus LAN' },
   'CAM-02': { label: 'Service yard', short: 'Service yard', kind: 'Fixed PTZ', fps: 25, res: '1920×1080', codec: 'H.265 · CBR', kbps: 5400, link: 'Fibre · campus LAN' },
-  'UGV-01': { label: 'Mast camera', short: 'Mast camera', kind: 'Robot', fps: 25, res: '640×512 LWIR', codec: 'H.264 · 14-bit LWIR', kbps: 2400, link: 'Mesh radio · 2 hops' },
+  'UGV-01': { label: 'Chemical Detection Sensor', short: 'Chem sensor', kind: 'Robot', fps: 25, res: '640×512 LWIR', codec: 'H.264 · 14-bit LWIR', kbps: 2400, link: 'Mesh radio · 2 hops' },
   'UAV-01': { label: 'Gimbal camera', short: 'Gimbal', kind: 'Aerial', fps: 30, res: '3840×2160', codec: 'H.265 · VBR', kbps: 11800, link: 'Air–ground datalink' },
 };
 

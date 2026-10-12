@@ -78,7 +78,7 @@ export const SENSORS: SensorDef[] = [
   {
     id: 'MET-W01',
     kind: 'met',
-    name: 'Meteorological mast',
+    name: 'Environmental Monitoring Sensor (EMS)',
     zoneId: 'WEST',
     x: -560,
     z: -150,

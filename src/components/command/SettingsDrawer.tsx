@@ -9,7 +9,7 @@ import { LOCATIONS, LOCATION_BY_ID } from '../../simulation/locations';
 import { Segmented, Toggle, cx, Kbd, useNow } from '../ui/primitives';
 import { compassLabel } from '../../utils/math';
 import { fmtDuration } from '../../utils/format';
-import { LogoMark } from '../layout/Logo';
+import { BridgeLogo } from '../layout/Logo';
 import type { ScenarioId, Severity } from '../../types';
 
 const PRESET_ICON: Record<ScenarioId, LucideIcon> = {
@@ -225,12 +225,9 @@ function DisplayTab() {
 function AboutTab() {
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center gap-3">
-        <LogoMark size={40} />
-        <div>
-          <div className="font-cond text-[20px] font-semibold leading-[24px] tracking-[0.22em] text-ink-1">ENCIRRA</div>
-          <div className="mt-0.5 text-[11.5px] leading-[16px] text-ink-3">Integrated CBRN Situational Awareness · version 1.0</div>
-        </div>
+      <div className="flex flex-col items-start gap-2">
+        <BridgeLogo height={28} />
+        <div className="text-[11.5px] leading-[16px] text-ink-3">Integrated CBRN Situational Awareness · version 1.0</div>
       </div>
       <p className="text-[12.5px] leading-[19px] text-ink-2">
         ENCIRRA brings chemical, biological, radiological and nuclear-readiness monitoring together with an interactive 3D digital twin, synthetic camera and robot feeds, AI-assisted correlation and an incident-response workflow.
