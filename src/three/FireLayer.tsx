@@ -296,7 +296,7 @@ const EMBER_FRAG = /* glsl */ `
   }
 `;
 
-/** Ground under the fire: soot, run-off water with foam, and the flames' glow. */
+/** Ground under the fire: soot, run-off water and the flames' glow. */
 const DECAL_VERT = /* glsl */ `
   varying vec2 vXZ;
   void main() {
@@ -321,9 +321,6 @@ const DECAL_FRAG = /* glsl */ `
     float wet = uWet * (1.0 - smoothstep(3.5, 8.0, r + (fx_noise(vXZ * 0.45 + 4.0) - 0.5) * 4.0));
     float a = clamp(scorch * (0.7 + 0.3 * n) + wet * 0.32, 0.0, 0.94);
     vec3 col = mix(vec3(0.035, 0.032, 0.03), vec3(0.11, 0.115, 0.12), wet * (1.0 - scorch) * 0.6);
-    float foam = wet * smoothstep(0.72, 0.86, fx_noise(vXZ * 7.0)) * (1.0 - smoothstep(1.5, 4.0, r));
-    col = mix(col, vec3(0.78, 0.8, 0.82), foam * 0.6);
-    a = max(a, foam * 0.35);
     float g = length(vXZ - uGlowAt);
     float gk = uGlow * exp(-g * g / 10.0);
     vec3 glow = vec3(1.0, 0.38, 0.1) * gk * 0.5;
@@ -355,7 +352,7 @@ const SPRAY_VERT = /* glsl */ `
       vec2 dir = vv.xy;
       float L = length(dir);
       dir = L > 1e-4 ? dir / L : vec2(0.0, 1.0);
-      vec2 perp = vec2(-dir.y, dir.x);
+      vec2 perp = vec2(dir.y, -dir.x); // (perp, dir) keeps the quad front-facing
       float w = aInfo.y > 1.5 ? 0.04 : 0.07 + 0.07 * f;
       mv.xy += dir * position.y * max(w * 2.0, L * 0.055) + perp * position.x * w;
       vAlpha = (aInfo.y > 1.5 ? 0.5 : 0.8) * (1.0 - smoothstep(0.75, 1.0, f));
@@ -414,7 +411,7 @@ const WASH_VERT = /* glsl */ `
     vec2 dir = vv.xy;
     float L = length(dir);
     dir = L > 1e-4 ? dir / L : vec2(0.0, 1.0);
-    vec2 perp = vec2(-dir.y, dir.x);
+    vec2 perp = vec2(dir.y, -dir.x); // (perp, dir) keeps the quad front-facing
     mv.xy += dir * position.y * max(0.1, L * 0.05) + perp * position.x * 0.05;
     gl_Position = projectionMatrix * mv;
     vUv = position.xy + 0.5;

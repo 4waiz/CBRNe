@@ -96,7 +96,7 @@ await check('scenario: Radiological → Chemical plume', async () => {
 
 await check('settings drawer → About shows the disclosure', async () => {
   await page.locator('header button[aria-label="Settings"]').click();
-  await page.getByRole('button', { name: 'About ENCIRRA' }).click();
+  await page.getByRole('button', { name: 'About BRIDGE' }).click();
   const text = await page.locator('[role="dialog"][aria-label="Settings"]').innerText();
   await page.screenshot({ path: resolve(outDir, 'settings-about.png') });
   await page.keyboard.press('Escape');

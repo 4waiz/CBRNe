@@ -38,7 +38,7 @@ const GLOW_MAIN = /* glsl */ `
   {
     vec3 fd = vScorchWorld - uFirePos;
     fd.y *= 0.6;
-    totalEmissiveRadiance += vec3(1.0, 0.42, 0.12) * uFireGlow * 1.6 * exp(-dot(fd, fd) / 5.5);
+    totalEmissiveRadiance += vec3(1.0, 0.42, 0.12) * uFireGlow * 0.45 * exp(-dot(fd, fd) / 4.0);
   }
 `;
 

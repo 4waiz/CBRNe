@@ -3,7 +3,7 @@
 // the viewport. Screenshots land in <outDir>/<size>/, findings in <outDir>/report.json.
 //
 //   node tools/screenshots/ui-audit.mjs [outDir] [--url=http://localhost:5173/] [--sizes=1366x768,1600x900,1920x1080]
-//                                       [--views=overview,twin]
+//                                       [--views=overview,twin] [--scenario=fire]
 import { chromium } from 'playwright-core';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -16,6 +16,8 @@ const sizes = (args.find((a) => a.startsWith('--sizes=')) ?? '--sizes=1366x768,1
   .split(',')
   .map((s) => s.split('x').map(Number));
 const only = (args.find((a) => a.startsWith('--views=')) ?? '').split('=')[1]?.split(',').filter(Boolean);
+// audit with a specific scenario running instead of the autoplay opening sequence
+const scenario = (args.find((a) => a.startsWith('--scenario=')) ?? '').split('=')[1];
 
 const browser = await chromium.launch({
   channel: 'msedge',
@@ -33,6 +35,14 @@ page.on('pageerror', (e) => logs.push(String(e)));
 await page.goto(`${base}#/overview`, { waitUntil: 'networkidle' });
 await page.evaluate(() => localStorage.clear());
 await page.reload({ waitUntil: 'networkidle' });
+if (scenario) {
+  await page.waitForFunction(() => window.__ENCIRRA__?.sim.getState().ready, null, { timeout: 60000 });
+  await page.evaluate((preset) => {
+    const E = window.__ENCIRRA__;
+    E.engine.cancelAutoplay();
+    E.engine.trigger({ ...E.ui.getState().scenarioDraft, preset, severity: 'moderate' });
+  }, scenario);
+}
 // let the opening sequence produce an incident so every panel has content
 await page.waitForFunction(
   () => window.__ENCIRRA__?.sim.getState().observations.some((o) => o.status === 'validation'),

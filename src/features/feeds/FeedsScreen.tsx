@@ -28,7 +28,7 @@ import { useSim } from '../../store/sim';
 import { useUI, FEED_SOURCES, type FeedMode, type FeedSource } from '../../store/ui';
 import { FeedViewport } from '../../components/feeds/FeedViewport';
 import { FeedTile, FeedStamp, LiveChip } from '../../components/feeds/FeedTile';
-import { FEED_META, resetFeedOffset } from '../../three/feedCameras';
+import { FEED_META, cam02Directed, resetFeedOffset } from '../../three/feedCameras';
 import { requestSnapshot } from '../../three/RenderLoop';
 import { focusOn } from '../../three/CameraRig';
 import { heatToCelsius } from '../../three/thermal';
@@ -52,6 +52,13 @@ const MODE_OPTIONS: { value: FeedMode; label: string }[] = [
   { value: 'thermal', label: 'Thermal' },
   { value: 'fusion', label: 'Fusion' },
 ];
+
+/** CAM-02 is being steered by the incident director (fire response); the operator's PTZ still applies. */
+function AutoTrack() {
+  useNow(1000);
+  if (!cam02Directed()) return null;
+  return <span className="rounded-[3px] bg-[rgb(242_179_61/0.2)] px-1.5 py-[1px] normal-case tracking-normal text-amber">Auto-track · incident</span>;
+}
 
 function ThermalScale() {
   const palette = useUI((s) => s.settings.palette);
@@ -172,6 +179,7 @@ function MainFeed({ source, onDetections }: { source: FeedSource; onDetections: 
               PAN {ptz.yaw.toFixed(1)}° · TILT {ptz.pitch.toFixed(1)}° · {ptz.zoom.toFixed(1)}×
             </span>
           )}
+          {source === 'CAM-02' && <AutoTrack />}
           {moved > 0.5 && (
             <span className="rounded-[3px] bg-[rgb(60_200_220/0.22)] px-1.5 py-[1px] normal-case tracking-normal text-[#8fe8f5]">
               Virtual view · {Math.round(moved)} m from mount

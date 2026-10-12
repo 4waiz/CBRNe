@@ -182,9 +182,9 @@ const BIO_CHECKLIST: Omit<ChecklistItem, 'done'>[] = [
 ];
 
 const FIRE_CHECKLIST: Omit<ChecklistItem, 'done'>[] = [
-  { id: 'detect', text: 'Detect · confirm the fire on camera', priority: 'high' },
+  { id: 'detect', text: 'Detect · smoke flagged by CAM-02 analytics', priority: 'high' },
   { id: 'protect', text: 'Protect · withdraw personnel to the assembly point', priority: 'high' },
-  { id: 'dispatch', text: 'Deploy · robot suppression and UAV overwatch', priority: 'high' },
+  { id: 'dispatch', text: 'Deploy · robot on scene with flames confirmed, UAV overwatch', priority: 'high' },
   { id: 'suppress', text: 'Suppress · knock down the fire, confirm on thermal', priority: 'high' },
   { id: 'decon', text: 'Decontaminate · robot through DECON-1', priority: 'medium' },
   { id: 'recover', text: 'Recover · recharge, return personnel, close out', priority: 'medium' },
@@ -639,6 +639,7 @@ function fireScript(): ScriptStep[] {
         });
         c.incident({ title: `Fire · ${c.loc.equipment}`, category: 'fire', severity: c.run.severity, sensors: [], checklist: FIRE_CHECKLIST });
         c.timeline('detect', 'Smoke detected over the generator skid', 'CAM-02 analytics', c.loc.equipment, c.vars.detectedAt);
+        c.check('detect');
       },
     },
     {
@@ -664,7 +665,6 @@ function fireScript(): ScriptStep[] {
         c.orbitUav(`Thermal overwatch · ${c.loc.short}`, site.fire.x, site.fire.z, { r: 46, alt: 36, speed: 11 });
         c.event({ category: 'asset', tone: 'info', title: 'UAV-01 circling the fire', detail: 'Low orbit · thermal mapping of the skid', focus: UAV });
         c.timeline('asset', 'UAV-01 low thermal orbit', 'Response coordinator');
-        c.check('dispatch');
       },
     },
     {
@@ -688,12 +688,11 @@ function fireScript(): ScriptStep[] {
       when: (c) => c.vars.dispatchedAt !== undefined && c.ugvDistanceTo(site.fire.x, site.fire.z) < 64,
       run: (c) => {
         const temp = c.fireTemp();
-        c.event({ category: 'fire', tone: 'critical', title: 'UGV-01 camera confirms open flame', detail: `Fire 97% · ${temp.toFixed(0)} °C on ${c.loc.equipment.toLowerCase()}`, confidence: 0.97, focus: UGV });
+        c.event({ category: 'fire', tone: 'critical', title: 'UGV-01 confirms open flame', detail: `Fire 97% · ${temp.toFixed(0)} °C on ${c.loc.equipment.toLowerCase()}`, confidence: 0.97, focus: UGV });
         c.evidence({ source: 'UGV-01 camera', sourceKind: 'camera', summary: 'Open flame on the generator skid', value: 'Fire 97%', weight: 0.62 });
         c.evidence({ source: 'UAV-01 thermal', sourceKind: 'camera', summary: 'Flame temperature from the overwatch orbit', value: `${temp.toFixed(0)} °C`, weight: 0.55 });
         c.observe({ confidence: 0.97, status: 'validation', sources: ['CAM-02 analytics', 'UGV-01 camera', 'UAV-01 thermal'] });
         c.timeline('detect', 'Fire confirmed by UGV-01 camera', 'UGV-01', `${temp.toFixed(0)} °C`);
-        c.check('detect');
       },
     },
     {
@@ -706,6 +705,7 @@ function fireScript(): ScriptStep[] {
         c.timeline('operator', 'Suppression authorised', 'Shift supervisor', 'UGV-01 water mist from the upwind stand-off');
         c.observe({ status: 'validated' });
         c.event({ category: 'fire', tone: 'warn', title: 'UGV-01 suppressing · water mist', detail: 'Upwind stand-off · 12 m from the skid', focus: UGV });
+        c.check('dispatch');
       },
     },
     {

@@ -12,6 +12,7 @@ import { Chip, Toggle, cx, useNow } from '../../components/ui/primitives';
 import { SEVERITY_LABEL, SEVERITY_TONE, TONE_HEX, INCIDENT_CATEGORY_LABEL } from '../../components/ui/tone';
 import { compassLabel } from '../../utils/math';
 import { fmtDuration } from '../../utils/format';
+import type { ChecklistItem } from '../../types';
 
 const LAYER_DESC: Record<string, string> = {
   radiation: 'Gamma dose-rate field + contours',
@@ -32,6 +33,50 @@ function Section({ icon: Icon, title, children, right }: { icon: typeof Layers; 
       </div>
       {children}
     </section>
+  );
+}
+
+/** Fire response phases, in order (checklist ids). */
+const RESPONSE_PHASES: [string, string][] = [
+  ['detect', 'Detect'],
+  ['protect', 'Protect'],
+  ['dispatch', 'Deploy'],
+  ['suppress', 'Suppress'],
+  ['decon', 'Decon'],
+  ['recover', 'Recover'],
+];
+
+/** Six-step bar for the fire response: done steps green, the step under way amber. */
+function PhaseStepper({ checklist }: { checklist: ChecklistItem[] }) {
+  const done = RESPONSE_PHASES.map(([id]) => !!checklist.find((c) => c.id === id)?.done);
+  const current = done.indexOf(false);
+  return (
+    <div className="mt-2">
+      <ol className="flex gap-[3px]" aria-label="Response phases">
+        {RESPONSE_PHASES.map(([id, name], k) => (
+          <li
+            key={id}
+            title={name}
+            aria-label={`${name}: ${done[k] ? 'done' : k === current ? 'under way' : 'pending'}`}
+            className={cx('h-[4px] flex-1 rounded-full', done[k] ? 'bg-green' : k === current ? 'animate-pulse bg-amber' : 'bg-line-strong')}
+          />
+        ))}
+      </ol>
+      <div className="mt-1 flex items-baseline justify-between gap-2 text-[10.5px]">
+        <span className="truncate text-ink-3">
+          {current === -1 ? (
+            'All phases complete'
+          ) : (
+            <>
+              Phase <span className="text-ink-1">{RESPONSE_PHASES[current][1]}</span>
+            </>
+          )}
+        </span>
+        <span className="mono shrink-0 text-ink-3">
+          {done.filter(Boolean).length}/{RESPONSE_PHASES.length}
+        </span>
+      </div>
+    </div>
   );
 }
 
@@ -60,6 +105,7 @@ function IncidentStatus() {
             <div className="mt-0.5 text-[10.5px] text-ink-3">
               {INCIDENT_CATEGORY_LABEL[i.category]} · {i.status === 'new' ? 'Awaiting acknowledgement' : i.status === 'acknowledged' ? 'Acknowledged' : 'Investigating'}
             </div>
+            {i.category === 'fire' && <PhaseStepper checklist={i.checklist} />}
             {/* the primary action gets its own full-width row: three buttons never fit this card's width */}
             <div className="mt-2 grid grid-cols-2 gap-1.5">
               {i.status === 'new' && (
