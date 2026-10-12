@@ -1,6 +1,6 @@
 {
   "meta": {
-    "name": "ENCIRRA generalized coastal energy campus",
+    "name": "BRIDGE generalized coastal energy campus",
     "units": "metres",
     "axes": "x = east, y = up, z = south (three.js world space)",
     "note": "Fictional, generalized layout artistically inspired by a four-unit coastal energy campus. It is not a geospatial replica of any real facility and contains no real security, sensor, camera or access information."

@@ -1,4 +1,4 @@
-// Shared domain types for the ENCIRRA synthetic scenario engine and UI.
+// Shared domain types for the BRIDGE synthetic scenario engine and UI.
 // All values described by these types are generated locally — none come from a real facility.
 
 export type Vec2 = { x: number; z: number };

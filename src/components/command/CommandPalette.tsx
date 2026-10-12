@@ -91,7 +91,7 @@ function buildCommands(): Cmd[] {
       },
     })),
     { id: 'settings', group: 'System', label: 'Open Settings · Scenario Control', icon: Settings, run: () => useUI.getState().openSettings('scenario') },
-    { id: 'about', group: 'System', label: 'About ENCIRRA', icon: Info, run: () => useUI.getState().openSettings('about') },
+    { id: 'about', group: 'System', label: 'About BRIDGE', icon: Info, run: () => useUI.getState().openSettings('about') },
   ];
   return cmds;
 }

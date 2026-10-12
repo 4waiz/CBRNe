@@ -1,8 +1,8 @@
-<img src="src/assets/encirra-logo.png" width="72" height="72" alt="ENCIRRA logo" />
+<img src="src/assets/bridge-logo.png" height="48" alt="BRIDGE logo" />
 
-# ENCIRRA
+# BRIDGE
 
-**ENCIRRA | Barakah CBRN Command Center**: an integrated CBRN situational-awareness interface with an interactive 3D digital twin, synthetic camera and robot feeds, AI-assisted correlation and an incident-response workflow.
+**BRIDGE | CBRN Command Center**: an integrated CBRN situational-awareness interface with an interactive 3D digital twin, synthetic camera and robot feeds, AI-assisted correlation and an incident-response workflow.
 
 > Conceptual situational-awareness environment using synthetic local data. No connection to operational Barakah systems.
 > All readings, events, images and AI observations are generated in the browser by a seeded scenario engine. The 3D campus is a fictional, generalized layout.
@@ -59,7 +59,7 @@ node tools/screenshots/capture.mjs screenshots/phase-2 --suffix=-final --url=htt
 
 - **Ctrl/⌘ + K**: command palette (navigate, focus UGV-01/UAV-01, trigger or reset scenarios, toggle layers, inspect sensors)
 - **Alt + 1–5**: switch screen · **Esc**: clear selection / leave fullscreen
-- **Settings → Scenario control**: preset, severity, location, wind direction and speed, duration. **Settings → About ENCIRRA** holds the disclosure.
+- **Settings → Scenario control**: preset, severity, location, wind direction and speed, duration. **Settings → About BRIDGE** holds the disclosure.
 - In the twin: drag to orbit, right-drag to pan, scroll to zoom, click to select, double-click to fly to an object.
 - **W A S D** move across the site (speed follows zoom), **Q / E** lower / raise, **Shift** ×3. In Live Feeds the same keys move a labelled *virtual view* of CAM-01 / CAM-02 ("Return to mount" resets it). Keys are ignored while typing or when a menu or dialog is open.
 - **Settings → Display → Frame new incidents** (on by default): a new incident is brought into the 3D view unless the camera was moved in the last 20 s.
@@ -100,4 +100,4 @@ The script reads `src/data/site-layout.json` and writes Draco-compressed GLBs to
 
 ---
 
-Encirra for Barakah • Developed by [Awaiz Ahmed](https://kanbanstudios.ae/team-kanban)
+BRIDGE for Barakah • Developed by [Awaiz Ahmed](https://kanbanstudios.ae/team-kanban)

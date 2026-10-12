@@ -16,7 +16,7 @@ export function Footer() {
   const total = useSim((s) => s.metrics.sensorsTotal);
   return (
     <footer className="relative z-20 flex h-[24px] shrink-0 items-center gap-4 border-t border-line bg-bg-1/95 px-4 text-[10.5px] text-ink-3">
-      <span className="font-cond uppercase tracking-[0.12em] text-ink-2">ENCIRRA 1.0</span>
+      <span className="font-cond uppercase tracking-[0.12em] text-ink-2">BRIDGE 1.0</span>
       <span aria-hidden>·</span>
       <span>
         Fusion engine <span className="mono text-ink-2">1 Hz</span>
@@ -33,7 +33,7 @@ export function Footer() {
         Render <Fps />
       </span>
       <span className="ml-auto">
-        Encirra for Barakah <span aria-hidden className="px-1 text-ink-4">•</span> Developed by{' '}
+        BRIDGE for Barakah <span aria-hidden className="px-1 text-ink-4">•</span> Developed by{' '}
         <a
           href="https://kanbanstudios.ae/team-kanban"
           target="_blank"

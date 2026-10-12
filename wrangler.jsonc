@@ -1,6 +1,6 @@
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
-  // ENCIRRA front end: the Vite build in dist/ served by Cloudflare Workers static assets
+  // BRIDGE front end: the Vite build in dist/ served by Cloudflare Workers static assets
   "name": "encirra",
   "account_id": "78477b5ac310a12d7dbd76555b8be974",
   "compatibility_date": "2026-10-09",

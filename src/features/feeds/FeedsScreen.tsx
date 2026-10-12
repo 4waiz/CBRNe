@@ -361,7 +361,7 @@ export function FeedsScreen() {
       const url = await requestSnapshot('feeds-main');
       const a = document.createElement('a');
       a.href = url;
-      a.download = `encirra-${main}-${new Date().toISOString().replace(/[:.]/g, '-')}.png`;
+      a.download = `bridge-${main}-${new Date().toISOString().replace(/[:.]/g, '-')}.png`;
       a.click();
       useUI.getState().notify(`Snapshot saved · ${main}`, 'ok');
     } catch {

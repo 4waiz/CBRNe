@@ -2,7 +2,7 @@
   "name": "encirra",
   "private": true,
   "version": "1.0.0",
-  "description": "ENCIRRA \u2014 conceptual CBRN situational-awareness and digital-twin interface driven by a local synthetic scenario engine.",
+  "description": "BRIDGE \u2014 conceptual CBRN situational-awareness and digital-twin interface driven by a local synthetic scenario engine.",
   "type": "module",
   "scripts": {
     "dev": "vite",

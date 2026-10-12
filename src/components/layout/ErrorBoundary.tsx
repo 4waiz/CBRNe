@@ -18,7 +18,7 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, info: ErrorInfo) {
-    console.error(`[ENCIRRA] ${this.props.label ?? 'component'} failed`, error, info.componentStack);
+    console.error(`[BRIDGE] ${this.props.label ?? 'component'} failed`, error, info.componentStack);
   }
 
   reset = () => this.setState({ error: null });

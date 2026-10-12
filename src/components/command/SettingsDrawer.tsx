@@ -230,7 +230,7 @@ function AboutTab() {
         <div className="text-[11.5px] leading-[16px] text-ink-3">Integrated CBRN Situational Awareness · version 1.0</div>
       </div>
       <p className="text-[12.5px] leading-[19px] text-ink-2">
-        ENCIRRA brings chemical, biological, radiological and nuclear-readiness monitoring together with an interactive 3D digital twin, synthetic camera and robot feeds, AI-assisted correlation and an incident-response workflow.
+        BRIDGE brings chemical, biological, radiological and nuclear-readiness monitoring together with an interactive 3D digital twin, synthetic camera and robot feeds, AI-assisted correlation and an incident-response workflow.
       </p>
       <div className="rounded-[7px] border border-line-strong bg-surface-2/70 px-3.5 py-3">
         <div className="micro mb-1">Disclosure</div>
@@ -245,7 +245,7 @@ function AboutTab() {
         Built with React, three.js / React Three Fiber and Blender-generated assets.
       </div>
       <div className="border-t border-line pt-3 text-[12px] text-ink-2">
-        Encirra for Barakah • Developed by{' '}
+        BRIDGE for Barakah • Developed by{' '}
         <a href="https://kanbanstudios.ae/team-kanban" target="_blank" rel="noreferrer" className="text-ink-1 underline decoration-ink-4 underline-offset-2 hover:decoration-cyan">
           Awaiz Ahmed
         </a>
@@ -268,7 +268,7 @@ export function SettingsDrawer() {
   const tabs: { id: typeof tab; label: string; icon: LucideIcon }[] = [
     { id: 'scenario', label: 'Scenario control', icon: SlidersHorizontal },
     { id: 'display', label: 'Display', icon: Monitor },
-    { id: 'about', label: 'About ENCIRRA', icon: Info },
+    { id: 'about', label: 'About BRIDGE', icon: Info },
   ];
   return (
     <div className="fixed inset-0 z-40 flex justify-end bg-bg-0/45" onMouseDown={close}>
