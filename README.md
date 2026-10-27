@@ -1,6 +1,5 @@
 <img src="src/assets/bridge-logo.png" height="48" alt="BRIDGE logo" />
 
-# BRIDGE
 
 **BRIDGE | CBRN Command Center**: an integrated CBRN situational-awareness interface with an interactive 3D digital twin, synthetic camera and robot feeds, AI-assisted correlation and an incident-response workflow.
 
